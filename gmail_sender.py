@@ -41,8 +41,18 @@ import config
 logger = logging.getLogger(__name__)
 
 SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 465          # SSL
-SMTP_TIMEOUT = 60        # soniya
+SMTP_TIMEOUT = 30        # soniya (bloklangan portni uzoq kutmaslik uchun)
+
+# Gmail SMTP bir nechta portda ishlaydi. Ba'zi hostinglar (Railway, Render...)
+# spamning oldini olish uchun chiquvchi SMTP portlarini bloklaydi - shunda
+# "[Errno 101] Network is unreachable" xatosi chiqadi. Shu sabab portlarni
+# navbat bilan sinaymiz: qaysi biri ochiq bo'lsa, o'sha ishlatiladi.
+#   465 - SSL (to'g'ridan-to'g'ri shifrlangan)
+#   587 - STARTTLS (odatda kamroq bloklanadi)
+SMTP_ENDPOINTS = [(465, "ssl"), (587, "starttls")]
+
+# Ishlagan port eslab qolinadi - keyingi safar to'g'ridan-to'g'ri o'shanga ulanamiz
+_working_endpoint = None
 
 # Gmail'ning xat hajmi chegarasi 25 MB. Xavfsizlik uchun biroz pastroq.
 MAX_TOTAL_BYTES = 23 * 1024 * 1024
@@ -87,8 +97,37 @@ def _get_address() -> str:
     return (config.GMAIL_ADDRESS or "").strip()
 
 
-def _connect() -> smtplib.SMTP_SSL:
-    """Gmail SMTP ga ulanib, kiradi. Muammo bo'lsa GmailError ko'taradi."""
+BLOCKED_HINT = (
+    "Server chiquvchi SMTP portlarini bloklagan ko'rinadi.\n\n"
+    "Bu hosting provayder (Railway, Render va h.k.) spamning oldini olish uchun\n"
+    "qo'yadigan cheklov — kod yoki parolda muammo yo'q.\n\n"
+    "Yechimlar:\n"
+    "1) Botni oddiy VPS ga ko'chirish (SMTP bloklanmaydi)\n"
+    "2) SMTP o'rniga HTTPS orqali ishlaydigan pochta xizmatiga o'tish"
+)
+
+
+def _open_socket(port: int, mode: str, ssl_ctx):
+    """Bitta portga ulanadi. Xatolik bo'lsa OSError/SMTPException ko'taradi."""
+    if mode == "ssl":
+        return smtplib.SMTP_SSL(SMTP_HOST, port, context=ssl_ctx, timeout=SMTP_TIMEOUT)
+
+    server = smtplib.SMTP(SMTP_HOST, port, timeout=SMTP_TIMEOUT)
+    server.ehlo()
+    server.starttls(context=ssl_ctx)
+    server.ehlo()
+    return server
+
+
+def _connect():
+    """
+    Gmail SMTP ga ulanib, kiradi. Muammo bo'lsa GmailError ko'taradi.
+
+    Portlar navbat bilan sinaladi (465 SSL -> 587 STARTTLS), chunki ba'zi
+    hostinglar ulardan birini bloklagan bo'lishi mumkin.
+    """
+    global _working_endpoint
+
     address = _get_address()
     password = _get_password()
 
@@ -99,25 +138,44 @@ def _connect() -> smtplib.SMTP_SSL:
     if len(password) != 16:
         logger.warning("Ilova paroli 16 belgi emas (%d ta) - xato bo'lishi mumkin", len(password))
 
-    try:
-        server = smtplib.SMTP_SSL(
-            SMTP_HOST, SMTP_PORT, context=ssl.create_default_context(), timeout=SMTP_TIMEOUT
-        )
-    except (socket.gaierror, socket.timeout, TimeoutError) as e:
-        raise GmailError(f"Gmail serveriga ulanib bo'lmadi (internet yo'qmi?): {e}") from e
-    except OSError as e:
-        raise GmailError(f"Gmail serveriga ulanib bo'lmadi: {e}") from e
+    ssl_ctx = ssl.create_default_context()
 
-    try:
-        server.login(address, password)
-    except smtplib.SMTPAuthenticationError as e:
-        server.close()
-        raise GmailError(f"{AUTH_HINT}\n\nGoogle javobi: {e.smtp_code} {e.smtp_error}") from e
-    except smtplib.SMTPException as e:
-        server.close()
-        raise GmailError(f"Gmail ga kirishda xatolik: {e}") from e
+    # Ilgari ishlagan port bo'lsa, avval o'shani sinaymiz
+    endpoints = list(SMTP_ENDPOINTS)
+    if _working_endpoint in endpoints:
+        endpoints.remove(_working_endpoint)
+        endpoints.insert(0, _working_endpoint)
 
-    return server
+    connect_errors = []
+    for port, mode in endpoints:
+        try:
+            server = _open_socket(port, mode, ssl_ctx)
+        except (OSError, smtplib.SMTPException) as e:
+            logger.warning("SMTP %s:%s (%s) ulanmadi: %s", SMTP_HOST, port, mode, e)
+            connect_errors.append(f"{port}/{mode}: {e}")
+            continue
+
+        # Ulanish bor - endi kirishga urinamiz
+        try:
+            server.login(address, password)
+        except smtplib.SMTPAuthenticationError as e:
+            server.close()
+            # Parol xato - boshqa portni sinashning ma'nosi yo'q
+            raise GmailError(f"{AUTH_HINT}\n\nGoogle javobi: {e.smtp_code} {e.smtp_error}") from e
+        except (OSError, smtplib.SMTPException) as e:
+            server.close()
+            logger.warning("SMTP %s:%s (%s) kirishda xatolik: %s", SMTP_HOST, port, mode, e)
+            connect_errors.append(f"{port}/{mode}: {e}")
+            continue
+
+        _working_endpoint = (port, mode)
+        logger.info("Gmail SMTP ulandi: %s:%s (%s)", SMTP_HOST, port, mode)
+        return server
+
+    detail = "\n".join(f"   • {e}" for e in connect_errors)
+    raise GmailError(
+        f"Gmail serveriga ulanib bo'lmadi — barcha portlar yopiq:\n{detail}\n\n{BLOCKED_HINT}"
+    )
 
 
 def check_credentials():
