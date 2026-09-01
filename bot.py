@@ -57,10 +57,15 @@ GMAIL_CHECK_INTERVAL_HOURS = 6
 # Bitta menyuda ko'rsatiladigan maksimal tugma soni (Telegram cheklovi uchun)
 MAX_BUTTONS = 40
 
-DEFAULT_CUSTOMERS = {
-    "SARBON": {"emails": ["galaxy@gmail.com", "edwdw@mail.ru"], "prefixes": [], "aliases": []},
-    "BMB GROUP": {"emails": ["bmb23@mail.ru"], "prefixes": [], "aliases": []},
-}
+# DIQQAT: bu yerda "namuna" mijozlar YARATILMAYDI.
+#
+# Ilgari bo'sh bazada avtomatik SARBON (galaxy@gmail.com) va BMB GROUP
+# (bmb23@mail.ru) yaratilardi. Bu XAVFLI edi: yangi serverda baza bo'sh
+# bo'lgani uchun shu soxta mijozlar paydo bo'lardi va fayl nomida "SARBON"
+# uchrasa, mijozning HUJJATLARI O'SHA SOXTA MANZILGA ketib qolishi mumkin edi.
+#
+# Endi baza bo'sh bo'lsa, bot ishga tushganda admin'ga ogohlantirish yuboradi
+# va mijozlarni /customer_add bilan qo'shishni so'raydi.
 
 # Ayni damda yuborilayotgan partiyalar - bir xil partiya ikki marta
 # (masalan deklaratsiya ikki marta tashlansa) yuborilib ketmasligi uchun
@@ -615,9 +620,18 @@ def _attach_unmatched(entry_id: str, code: str):
     if not entry:
         return None
 
+    # Mijozni aniqlash - oddiy oqimdagi kabi UCH usul bilan:
+    # nom/alias -> prefiks -> shu kod bo'yicha eslab qolingan mijoz.
+    # (Ilgari prefiks tekshirilmasdi, shuning uchun "NGS" prefiksi bo'lgan
+    #  fayllar biriktirilsa ham mijozsiz qolib ketardi.)
     customer_name, _ = customer_store.find_by_filename(entry["filename"])
+    parsed_code = session_store.parse(entry["filename"])
+    if not customer_name and parsed_code and parsed_code.get("prefix"):
+        customer_name = customer_store.find_by_prefix(parsed_code["prefix"])
     if not customer_name:
         customer_name = session_store.recall(code)
+    if customer_name:
+        session_store.remember(code, customer_name)
 
     # Hujjat turini aniqlaymiz. Aniqlanmasa "MANUAL" deb belgilaymiz -
     # admin bu faylni ATAYLAB biriktirgani uchun u xatga qo'shiladi
@@ -665,6 +679,52 @@ async def batch_attach_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     await message.reply_text(f"✅ \"{entry['filename']}\" endi {code} partiyasiga biriktirildi.")
+
+
+@private_only
+async def unmatched_attach_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Format: /unmatched_attach_all
+    Barcha noaniq fayllarni fayl nomidagi kod bo'yicha o'z partiyalariga
+    biriktiradi. Mijozlar ro'yxati keyinroq to'ldirilganda qo'l keladi:
+    o'nlab faylni bitta-bitta biriktirib o'tirishning hojati qolmaydi.
+    """
+    message = update.effective_message
+    data = unmatched_store.all_unmatched()
+    if not data:
+        await message.reply_text("Noaniq fayllar yo'q.")
+        return
+
+    attached, skipped = {}, []
+    for entry_id, info in sorted(data.items()):
+        parsed = session_store.parse(info.get("filename", ""))
+        if not parsed:
+            skipped.append(info.get("filename", entry_id))
+            continue
+        code = parsed["code"]
+        if _attach_unmatched(entry_id, code):
+            attached.setdefault(code, 0)
+            attached[code] += 1
+        else:
+            skipped.append(info.get("filename", entry_id))
+
+    if not attached:
+        await message.reply_text(
+            "Hech qaysi fayl biriktirilmadi (fayl nomlarida kod topilmadi)."
+        )
+        return
+
+    lines = ["✅ Biriktirildi:"]
+    for code, count in sorted(attached.items()):
+        batch = batch_store.get_batch(code)
+        customer = (batch or {}).get("customer") or "❓ mijoz aniqlanmagan"
+        lines.append(f"   • {code} -> {customer}: {count} ta fayl "
+                     f"[{doc_types.progress_line((batch or {}).get('files', []))}]")
+    if skipped:
+        lines.append(f"\n⚠️ Biriktirilmadi: {', '.join(skipped)}")
+    lines.append("\nYuborish uchun deklaratsiyani guruhga qayta tashlang, "
+                 "yoki /batch_send KOD.")
+    await message.reply_text("\n".join(lines))
 
 
 @private_only
@@ -748,6 +808,7 @@ HELP_TEXT = (
     "/batch_cancel KOD\n"
     "/unmatched\n"
     "/batch_attach KOD | ID\n"
+    "/unmatched_attach_all — barcha noaniq fayllarni kodi bo'yicha biriktirish\n"
     "/unmatched_delete ID\n"
     "/status — bot va sozlamalar holati\n"
     "/gmail_check — Gmail ruxsati ishlayaptimi, tekshirish\n"
@@ -1963,6 +2024,19 @@ async def _post_init(app: Application):
     note = "♻️ Bot qayta ishga tushdi."
     if problems:
         note += "\n\n⚠️ Sozlamalarda muammo:\n" + "\n".join(f"• {p}" for p in problems)
+
+    # Baza bo'sh bo'lsa (masalan yangi serverda) - hujjatlar hech kimga
+    # yuborilmaydi, hammasi "noaniq fayllar" ga tushib ketaveradi.
+    # Buni oldindan aytamiz.
+    if not customer_store.load_customers():
+        note += (
+            "\n\n❗ MIJOZLAR RO'YXATI BO'SH.\n"
+            "Bot hujjatlarni hech kimga yubora olmaydi — hammasi \"noaniq "
+            "fayllar\" ga tushadi.\n\n"
+            "Mijozlarni qo'shing, masalan:\n"
+            "/customer_add GALLAKTIKA | pochta@example.com\n"
+            "/prefix_add NGS | GALLAKTIKA"
+        )
     try:
         await app.bot.send_message(config.ADMIN_USER_ID, note)
     except TelegramError as e:
@@ -1997,8 +2071,6 @@ def main():
         asyncio.get_running_loop()
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
-
-    customer_store.bootstrap_if_empty(DEFAULT_CUSTOMERS)
 
     # Tarmoq beqaror bo'lganda "httpx.ReadError" chiqib turmasligi uchun
     # kutish vaqtlari uzaytirilgan. Standart qiymatlar (5 soniya) sekin yoki
@@ -2038,6 +2110,7 @@ def main():
     app.add_handler(CommandHandler("batch_cancel", batch_cancel_command))
     app.add_handler(CommandHandler("unmatched", unmatched_command))
     app.add_handler(CommandHandler("unmatched_delete", unmatched_delete_command))
+    app.add_handler(CommandHandler("unmatched_attach_all", unmatched_attach_all_command))
     app.add_handler(CommandHandler("batch_attach", batch_attach_command))
     app.add_handler(CallbackQueryHandler(callback_router))
     app.add_handler(MessageHandler(
