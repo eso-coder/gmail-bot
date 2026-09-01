@@ -30,6 +30,7 @@ import copy
 import logging
 import mimetypes
 import os
+import re
 import smtplib
 import socket
 import ssl
@@ -70,8 +71,16 @@ AUTH_HINT = (
 
 
 def _get_password() -> str:
-    """Ilova parolidagi probellarni olib tashlaydi (Google uni 4 talab ko'rsatadi)."""
-    return (config.GMAIL_APP_PASSWORD or "").replace(" ", "").strip()
+    """
+    Ilova parolidan barcha bo'sh belgilarni olib tashlaydi.
+
+    Google parolni "abcd efgh ijkl mnop" ko'rinishida ko'rsatadi va nusxa
+    olganda ODDIY PROBEL emas, UZILMAS PROBEL (NBSP, U+00A0) qo'yib yuboradi.
+    Ilgari faqat oddiy probel olib tashlangani uchun parol 16 emas, 19 belgi
+    bo'lib qolardi va Gmail uni qabul qilmasdi.
+    Shuning uchun \\s (barcha bo'sh belgi turlari) bo'yicha tozalaymiz.
+    """
+    return re.sub(r"\s+", "", config.GMAIL_APP_PASSWORD or "")
 
 
 def _get_address() -> str:

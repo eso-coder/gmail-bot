@@ -1989,8 +1989,12 @@ def main():
 
     # Python 3.14+ da asyncio.get_event_loop() avtomatik loop yaratmaydi,
     # shu sabab ba'zi kutubxonalar (jumladan python-telegram-bot) xato beradi.
+    # DIQQAT: bu yerda get_event_loop() ni CHAQIRMAYMIZ - Python 3.12/3.13 da
+    # u "DeprecationWarning: There is no current event loop" ogohlantirishini
+    # loglarga chiqarib, xatolikdek ko'rinardi. get_running_loop() esa
+    # hech qanday ogohlantirish bermaydi.
     try:
-        asyncio.get_event_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
