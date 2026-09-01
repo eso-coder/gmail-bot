@@ -1,0 +1,22 @@
+# Maxfiy sozlamalar
+.env
+
+# Bot ma'lumotlari (serverda doimiy diskda saqlanadi)
+batches.json
+customers.json
+sessions.json
+sent.json
+unmatched.json
+*.corrupt
+downloads/
+backup_*/
+
+# Eski OAuth fayllari
+token.json
+credentials.json
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.tmp_*

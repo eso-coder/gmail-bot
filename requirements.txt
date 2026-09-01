@@ -1,0 +1,9 @@
+python-telegram-bot[job-queue]==22.8
+
+# Xat yuborish uchun qo'shimcha kutubxona kerak emas - Python'ning o'z
+# smtplib moduli ishlatiladi (Gmail SMTP + ilova paroli).
+#
+# Eski OAuth usuli (gmail_auth_setup.py) ga qaytmoqchi bo'lsangiz, quyidagilar kerak:
+#   google-auth==2.34.0
+#   google-auth-oauthlib==1.2.1
+#   google-api-python-client==2.140.0
