@@ -1978,7 +1978,12 @@ async def _post_init(app: Application):
 def main():
     problems = config.validate()
     if not config.BOT_TOKEN or ":" not in config.BOT_TOKEN:
-        raise SystemExit("XATOLIK: BOT_TOKEN belgilanmagan yoki noto'g'ri. config.py ni tekshiring.")
+        raise SystemExit(
+            "XATOLIK: BOT_TOKEN belgilanmagan yoki noto'g'ri.\n"
+            "  • Kompyuterda ishlatsangiz  -> .env faylini tekshiring\n"
+            "  • Serverda (Railway) bo'lsa -> Variables bo'limini tekshiring\n"
+            "Token @BotFather bergan, ichida ':' bo'lgan qator bo'lishi kerak."
+        )
     for p in problems:
         logger.warning("SOZLAMA: %s", p)
 
