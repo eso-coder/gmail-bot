@@ -1,0 +1,6 @@
+# Shell skriptlari HAR DOIM LF (Unix) qator oxiri bilan saqlanadi.
+# Aks holda Windows'dan push qilinganda CRLF tushib, Linux serverda
+# "bad interpreter: /usr/bin/env bash^M" xatosi chiqadi.
+*.sh text eol=lf
+Procfile text eol=lf
+.env.example text eol=lf
