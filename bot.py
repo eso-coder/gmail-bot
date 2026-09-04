@@ -29,6 +29,7 @@ from telegram.ext import (
 import batch_store
 import config
 import customer_store
+import declaration
 import doc_types
 import gmail_sender
 import sent_store
@@ -1301,6 +1302,20 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     file_paths = [f["path"] for f in ordered]
     file_names = [f["filename"] for f in ordered]
 
+    # Xat mavzusini deklaratsiyadan boyitamiz:
+    #   "NGS-4  ||  40249PCA/407119BA  ||  DAP - Шымкент"
+    # O'qib bo'lmasa - odatdagi mavzu ishlatiladi, xat baribir ketaveradi.
+    subject, decl_info = declaration.build_subject(display_code, ordered)
+    truck_full = decl_info.get("plates")
+    if subject is None:
+        subject = doc_types.email_subject(display_code, batch.get("truck"))
+        logger.info("%s: deklaratsiyadan mavzu o'qilmadi (%s)", code, decl_info)
+        await notify_admin(
+            context,
+            f"ℹ️ \"{display_code}\" — deklaratsiyadan avto raqam / yetkazish sharti "
+            f"o'qilmadi, oddiy mavzu ishlatildi.\nXat baribir yuborildi."
+        )
+
     _sending_now.add(code)
     try:
         # Gmail API sinxron ishlaydi - alohida oqimda bajaramiz, aks holda
@@ -1308,8 +1323,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         results = await asyncio.to_thread(
             gmail_sender.send_batch_to_multiple,
             emails,
-            doc_types.email_subject(display_code, batch.get("truck")),
-            doc_types.email_body(display_code, batch.get("truck"), ordered),
+            subject,
+            doc_types.email_body(display_code, truck_full or batch.get("truck"), ordered),
             file_paths,
         )
     except Exception as e:
