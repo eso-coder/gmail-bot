@@ -26,9 +26,18 @@ def get_batch(code: str):
     return _load().get(code)
 
 
-def add_file(code: str, filename: str, local_path: str, file_unique_id: str = None,
+def add_file(code: str, filename: str, local_path: str = None, file_unique_id: str = None,
              customer: str = None, display: str = None, doc_type: str = None,
-             truck: str = None) -> dict:
+             truck: str = None, file_id: str = None, message_id: int = None) -> dict:
+    """
+    Partiyaga fayl qo'shadi.
+
+    DIQQAT: `local_path` odatda BO'SH bo'ladi. Fayllar guruhga tashlanganda
+    darhol yuklab olinmaydi - chunki Telegram'da hujjatni keyinchalik
+    TAHRIRLASH mumkin va bizda eski nusxa qolib ketardi. Shuning uchun bu
+    yerda faqat `file_id` saqlanadi, haqiqiy yuklash esa yakuniy
+    deklaratsiya kelganda, bir yo'la bajariladi.
+    """
     data = _load()
     batch = data.get(code) or {"customer": None, "files": [], "created_at": time.time()}
     batch.setdefault("files", [])
@@ -46,6 +55,8 @@ def add_file(code: str, filename: str, local_path: str, file_unique_id: str = No
         "filename": filename,
         "path": local_path,
         "file_unique_id": file_unique_id,
+        "file_id": file_id,
+        "message_id": message_id,
         "doc_type": doc_type,
         "truck": truck,
     })
@@ -54,6 +65,64 @@ def add_file(code: str, filename: str, local_path: str, file_unique_id: str = No
     data[code] = batch
     _save(data)
     return batch
+
+
+def replace_file(code: str, message_id: int, filename: str, file_id: str,
+                 file_unique_id: str, doc_type: str = None, truck: str = None) -> bool:
+    """
+    Guruhda hujjat TAHRIRLANGANDA eski yozuvni yangisi bilan almashtiradi.
+    Shu tufayli mijozga har doim hujjatning oxirgi versiyasi ketadi.
+    """
+    data = _load()
+    batch = data.get(code)
+    if not batch:
+        return False
+
+    for f in batch.get("files", []):
+        if f.get("message_id") == message_id:
+            # Eski yuklab olingan nusxa endi yaroqsiz
+            old = f.get("path")
+            if old and os.path.exists(old):
+                try:
+                    os.remove(old)
+                except OSError:
+                    pass
+            f.update({
+                "filename": filename,
+                "file_id": file_id,
+                "file_unique_id": file_unique_id,
+                "doc_type": doc_type,
+                "truck": truck,
+                "path": None,
+                "edited_at": time.time(),
+            })
+            batch["updated_at"] = time.time()
+            _save(data)
+            return True
+    return False
+
+
+def find_by_message(message_id: int):
+    """Tahrirlangan xabar qaysi partiyaga tegishli ekanini topadi."""
+    for code, batch in _load().items():
+        for f in batch.get("files", []):
+            if f.get("message_id") == message_id:
+                return code, f
+    return None, None
+
+
+def set_paths(code: str, paths: dict) -> None:
+    """Yuklab olingandan keyin fayllarning disk yo'lini yozadi.
+    paths: {file_unique_id: local_path}"""
+    data = _load()
+    batch = data.get(code)
+    if not batch:
+        return
+    for f in batch.get("files", []):
+        p = paths.get(f.get("file_unique_id"))
+        if p:
+            f["path"] = p
+    _save(data)
 
 
 def has_doc_type(code: str, doc_type: str) -> bool:

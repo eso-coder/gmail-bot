@@ -1265,14 +1265,19 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
 
     # Diskda yo'q fayl bo'lsa, hech narsa yuborilmasin - yarim komplekt
     # ketib qolgandan ko'ra, admin xabardor bo'lgani yaxshi
-    missing = batch_store.missing_files(code)
-    if missing:
-        msg = (f"❌ {display_code} yuborilmadi: bu fayllar diskda topilmadi — "
-               f"{', '.join(missing)}.\nFayllarni qayta tashlang yoki /batch_cancel {code}.")
+    # Fayllarni AYNAN HOZIR Telegram'dan yuklab olamiz - guruhda hujjat
+    # tahrirlangan bo'lsa, mijozga oxirgi versiyasi ketsin.
+    ok_dl, dl_errors = await _download_batch_files(context, code)
+    if not ok_dl:
+        msg = (f"❌ {display_code} yuborilmadi — bu fayllarni Telegram'dan "
+               f"yuklab bo'lmadi:\n" + "\n".join(f"   • {e}" for e in dl_errors) +
+               f"\n\nFayllarni qayta tashlang yoki /batch_cancel {code}.")
         await safe_send(context, notify_chat_id, msg)
         if notify_chat_id != config.ADMIN_USER_ID:
             await notify_admin(context, msg)
         return
+
+    batch = batch_store.get_batch(code)   # yo'llar yangilandi
 
     # Fayllar xatga MA'LUM TARTIBDA biriktiriladi: avval invoys guruhi
     # (xlsx, INV, SPETS), keyin skanerlar (ST, FITO, AKT, CMR, TIR),
@@ -1391,42 +1396,88 @@ def _in_allowed_chat(update: Update) -> bool:
     return chat.type in ("group", "supergroup")
 
 
+def _extract_file(message):
+    """
+    Xabardan fayl ma'lumotlarini ajratib oladi.
+    Qaytaradi: (fayl_nomi, file_id, file_unique_id) yoki (None, None, None)
+    """
+    if message.document is not None:
+        d = message.document
+        return (d.file_name or "hujjat"), d.file_id, d.file_unique_id
+    if message.photo:
+        p = message.photo[-1]  # eng katta o'lchamdagi versiya
+        caption = (message.caption or "").strip()
+        name = f"{caption}.jpg" if caption else f"rasm_{message.message_id}.jpg"
+        return name, p.file_id, p.file_unique_id
+    return None, None, None
+
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
-    if message is None or message.document is None:
+    if message is None or message.document is None or not _in_allowed_chat(update):
         return
-    if not _in_allowed_chat(update):
-        return
-
-    doc = message.document
-    await _process_incoming_file(
-        update, context, doc.file_name or "hujjat", doc.file_unique_id, doc.get_file
-    )
+    name, fid, fuid = _extract_file(message)
+    await _process_incoming_file(update, context, name, fid, fuid)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Siqilgan rasm (photo) sifatida yuborilgan fayllarni ham qabul qiladi.
-    Bunda odatda fayl nomi bo'lmaydi, shuning uchun caption (izoh) dan
-    kod izlaymiz. Caption bo'lmasa - kod topilmaydi va e'tiborsiz qoladi."""
+    Bunda fayl nomi bo'lmaydi, shuning uchun kod caption (izoh) dan izlanadi."""
     message = update.effective_message
-    if message is None or not message.photo:
+    if message is None or not message.photo or not _in_allowed_chat(update):
         return
-    if not _in_allowed_chat(update):
+    name, fid, fuid = _extract_file(message)
+    await _process_incoming_file(update, context, name, fid, fuid)
+
+
+async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Guruhda hujjat TAHRIRLANGANDA ishlaydi.
+
+    Telegram'da yuborilgan hujjatni keyinchalik almashtirish mumkin. Bot
+    fayllarni faqat deklaratsiya kelganda yuklab oladi, lekin `file_id`
+    eski xabarnikiga ishora qilib qolardi - ya'ni mijozga ESKI versiya
+    ketardi. Shuning uchun tahrirlashni ushlab, yozuvni yangilaymiz.
+    """
+    message = update.edited_message
+    if message is None or not _in_allowed_chat(update):
         return
 
-    photo = message.photo[-1]  # eng katta o'lchamdagi versiya
-    caption = (message.caption or "").strip()
-    pseudo_filename = f"{caption}.jpg" if caption else f"rasm_{message.message_id}.jpg"
+    name, fid, fuid = _extract_file(message)
+    if not fid:
+        return
 
-    await _process_incoming_file(update, context, pseudo_filename, photo.file_unique_id, photo.get_file)
+    code, old = batch_store.find_by_message(message.message_id)
+    if not code:
+        return  # bu xabar biror partiyaga tegishli emas
+
+    parsed = session_store.parse(name)
+    doc_type, truck = (None, None)
+    if parsed:
+        doc_type, truck = doc_types.detect(parsed["remainder"], parsed["extension"])
+        if parsed["is_declaration"]:
+            doc_type = "DEKL"
+
+    batch_store.replace_file(code, message.message_id, safe_filename(name),
+                             fid, fuid, doc_type=doc_type, truck=truck)
+
+    old_name = old.get("filename", "?")
+    logger.info("Tahrirlangan hujjat yangilandi: %s -> %s (%s)", old_name, name, code)
+
+    batch = batch_store.get_batch(code)
+    text = f"✏️ Hujjat yangilandi: {old_name}"
+    if safe_filename(name) != old_name:
+        text += f" → {name}"
+    text += f"\nMijozga oxirgi versiya ketadi. [{doc_types.progress_line(batch['files'])}]"
+    await safe_send(context, update.effective_chat.id, text)
 
 
 DOWNLOAD_ATTEMPTS = 3
 
 
-async def _download(get_file_func, local_dir: str, filename: str) -> str:
+async def _download(bot, file_id: str, local_dir: str, filename: str) -> str:
     """
-    Faylni Telegram'dan yuklab oladi.
+    Faylni Telegram'dan `file_id` bo'yicha yuklab oladi.
 
     Internet beqaror bo'lsa bitta urinish yetmasligi mumkin - bunday holda
     hujjat YO'QOLIB ketardi (hodim uni qayta tashlashi kerak bo'lardi).
@@ -1438,7 +1489,7 @@ async def _download(get_file_func, local_dir: str, filename: str) -> str:
     last_error = None
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
         try:
-            tg_file = await get_file_func()
+            tg_file = await bot.get_file(file_id)
             await tg_file.download_to_drive(local_path)
             return local_path
         except (NetworkError, TimedOut, OSError) as e:
@@ -1552,7 +1603,7 @@ def _naming_warnings(existing_batch, parsed, doc_type, truck, filename) -> list:
 
 
 async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                 filename: str, file_unique_id: str, get_file_func):
+                                 filename: str, file_id: str, file_unique_id: str):
     chat_id = update.effective_chat.id
 
     parsed = session_store.parse(filename)
@@ -1585,7 +1636,7 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     sent_code, sent_entry = sent_store.find_by_file(file_unique_id)
     if sent_code and not batch_store.get_batch(code):
         await _ask_resend(update, context, code, display, filename,
-                          file_unique_id, get_file_func, sent_code, sent_entry)
+                          file_id, file_unique_id, sent_code, sent_entry)
         return
 
     # ---- 2. Mijozni aniqlash ----
@@ -1600,7 +1651,7 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     if not customer_name:
         # Kod bor, lekin qaysi mijozga tegishli ekani noma'lum - fayl
         # yo'qolmasin, "noaniq fayllar" ro'yxatiga saqlaymiz.
-        await _store_unmatched(update, context, filename, file_unique_id, get_file_func, code)
+        await _store_unmatched(update, context, filename, file_id, file_unique_id, code)
         return
 
     # ---- 3. Dublikat ----
@@ -1615,28 +1666,18 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
             await _on_declaration(update, context, code)
         return
 
-    # ---- 4. Yuklab olish va partiyaga qo'shish ----
-    try:
-        local_path = await _download(get_file_func, os.path.join(DOWNLOAD_DIR, code), filename)
-    except Exception as e:
-        logger.exception("Faylni yuklab bo'lmadi: %s", filename)
-        await safe_send(context, chat_id, f"❌ \"{filename}\" faylini yuklab bo'lmadi: {e}")
-        await notify_admin(context, f"❌ \"{filename}\" faylini yuklab bo'lmadi: {e}")
-        return
-
-    # Yuklash paytida boshqa nusxa qo'shilib qolgan bo'lishi mumkin
-    if batch_store.is_duplicate(code, file_unique_id):
-        try:
-            os.remove(local_path)
-        except OSError:
-            pass
-        return
-
+    # ---- 4. Partiyaga qo'shish (YUKLAB OLMASDAN) ----
+    #
+    # Fayl hozir yuklab olinmaydi - faqat `file_id` eslab qolinadi.
+    # Sabab: Telegram'da hujjatni keyinchalik tahrirlash mumkin. Agar hozir
+    # yuklab olsak, mijozga eski versiya ketib qolardi. Barcha fayllar
+    # yakuniy deklaratsiya kelganda, bir yo'la yuklab olinadi.
     warnings = _naming_warnings(batch_store.get_batch(code), parsed, doc_type, truck, filename)
 
-    batch_store.add_file(code, safe_filename(filename), local_path,
+    batch_store.add_file(code, safe_filename(filename),
                          file_unique_id=file_unique_id, customer=customer_name,
-                         display=display, doc_type=doc_type, truck=truck)
+                         display=display, doc_type=doc_type, truck=truck,
+                         file_id=file_id, message_id=update.effective_message.message_id)
 
     for warning in warnings:
         await safe_send(context, chat_id, warning)
@@ -1691,6 +1732,47 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
     await _finalize_and_send(code, context, notify_chat_id=chat_id)
 
 
+async def _download_batch_files(context: ContextTypes.DEFAULT_TYPE, code: str):
+    """
+    Partiyaning barcha fayllarini AYNAN SHU PAYTDA Telegram'dan yuklab oladi.
+
+    Fayllar guruhga tashlanganda saqlanmaydi - chunki hujjatni keyinchalik
+    tahrirlash mumkin. Yuklash faqat shu yerda, deklaratsiya kelganda
+    bajariladi. Shu tufayli mijozga har doim hujjatlarning OXIRGI
+    versiyasi ketadi.
+
+    Qaytaradi: (muvaffaqiyatlimi, xato_matnlari)
+    """
+    batch = batch_store.get_batch(code)
+    if not batch:
+        return False, ["Partiya topilmadi"]
+
+    local_dir = os.path.join(DOWNLOAD_DIR, code)
+    paths, errors = {}, []
+
+    for f in batch.get("files", []):
+        uid = f.get("file_unique_id")
+        existing = f.get("path")
+        # Allaqachon yuklab olingan bo'lsa (masalan qayta yuborishda) - qoldiramiz
+        if existing and os.path.exists(existing):
+            paths[uid] = existing
+            continue
+
+        file_id = f.get("file_id")
+        if not file_id:
+            errors.append(f"{f.get('filename', '?')}: file_id yo'q (eski yozuv)")
+            continue
+
+        try:
+            paths[uid] = await _download(context.bot, file_id, local_dir, f.get("filename", "hujjat"))
+        except Exception as e:
+            logger.exception("Yuklab bo'lmadi: %s", f.get("filename"))
+            errors.append(f"{f.get('filename', '?')}: {e}")
+
+    batch_store.set_paths(code, paths)
+    return (len(errors) == 0), errors
+
+
 # ---------- Allaqachon yuborilgan faylni qayta tashlaganda ----------
 
 # code -> {"chat_id", "files": [...], "sent_code", "sent_at"}
@@ -1700,7 +1782,7 @@ RESEND_ASK_DELAY = 4
 
 
 async def _ask_resend(update: Update, context: ContextTypes.DEFAULT_TYPE, code: str,
-                      display: str, filename: str, file_unique_id: str, get_file_func,
+                      display: str, filename: str, file_id: str, file_unique_id: str,
                       sent_code: str, sent_entry: dict):
     """
     Bu fayl allaqachon pochtaga yuborilgan. Darhol qabul qilib qo'ymaymiz -
@@ -1713,7 +1795,7 @@ async def _ask_resend(update: Update, context: ContextTypes.DEFAULT_TYPE, code: 
 
     try:
         local_path = await _download(
-            get_file_func, os.path.join(DOWNLOAD_DIR, "_resend", code), filename
+            context.bot, file_id, os.path.join(DOWNLOAD_DIR, "_resend", code), filename
         )
     except Exception:
         logger.exception("Qayta yuborish uchun faylni yuklab bo'lmadi: %s", filename)
@@ -1836,11 +1918,12 @@ def _cleanup_dir(path: str):
 
 
 async def _store_unmatched(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                           filename: str, file_unique_id: str, get_file_func, code: str):
+                           filename: str, file_id: str, file_unique_id: str, code: str):
     if unmatched_store.already_received(file_unique_id):
         return
     try:
-        local_path = await _download(get_file_func, os.path.join(DOWNLOAD_DIR, "_unmatched"), filename)
+        local_path = await _download(context.bot, file_id,
+                                     os.path.join(DOWNLOAD_DIR, "_unmatched"), filename)
     except Exception:
         logger.exception("Noaniq faylni yuklab bo'lmadi: %s", filename)
         return
@@ -2147,6 +2230,12 @@ def main():
     # ushlab, update.message = None bo'lgani uchun xatolik berardi.
     app.add_handler(MessageHandler(filters.Document.ALL & filters.UpdateType.MESSAGE, handle_document))
     app.add_handler(MessageHandler(filters.PHOTO & filters.UpdateType.MESSAGE, handle_photo))
+    # Guruhda hujjat TAHRIRLANGANDA - yozuvni yangilaymiz, aks holda
+    # mijozga hujjatning eski versiyasi ketib qolardi.
+    app.add_handler(MessageHandler(
+        (filters.Document.ALL | filters.PHOTO) & filters.UpdateType.EDITED_MESSAGE,
+        handle_edited_file,
+    ))
 
     app.add_error_handler(error_handler)
 
