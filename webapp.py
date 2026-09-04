@@ -23,6 +23,7 @@ from urllib.parse import parse_qsl
 
 from aiohttp import web
 
+import access_store
 import batch_store
 import config
 import customer_store
@@ -83,7 +84,7 @@ def _require_admin(payload: dict):
     user = _check_init_data(payload.get("initData", ""))
     if not user:
         return None, web.json_response({"error": "Imzo tekshiruvidan o'tmadi"}, status=401)
-    if config.ADMIN_USER_ID is not None and user.get("id") != config.ADMIN_USER_ID:
+    if not access_store.is_admin(user.get("id")):
         logger.warning("Mini App: ruxsatsiz urinish, user id=%s", user.get("id"))
         return None, web.json_response({"error": "Sizda ruxsat yo'q"}, status=403)
     return user, None
@@ -125,11 +126,19 @@ def _collect_state() -> dict:
             "age_hours": round((now - info.get("created_at", now)) / 3600, 1),
         })
 
+    groups = [{"id": gid, "title": i.get("title") or ""}
+              for gid, i in sorted(access_store.all_groups().items())]
+    admins = [{"id": uid, "name": i.get("name") or ""}
+              for uid, i in sorted(access_store.all_admins().items())]
+
     return {
         "customers": customers,
         "batches": batches,
         "unmatched": unmatched,
         "required": doc_types.REQUIRED_ORDER,
+        "groups": groups,
+        "admins": admins,
+        "owner": access_store.owner_id(),
     }
 
 
@@ -210,6 +219,34 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
             return {"ok": True, "message": "O'chirildi"}
         return {"error": "Fayl topilmadi"}
 
+    if action in ("admin_add", "admin_remove"):
+        # Admin ro'yxatini FAQAT bot egasi o'zgartira oladi
+        if not access_store.is_owner(ctx["user_id"]):
+            return {"error": "Admin ro'yxatini faqat bot egasi o'zgartira oladi"}
+        raw = str(data.get("id", "")).strip()
+        if not raw.lstrip("-").isdigit():
+            return {"error": "ID raqam bo'lishi kerak"}
+        uid = int(raw)
+        if action == "admin_add":
+            if access_store.is_owner(uid):
+                return {"error": "Bu allaqachon bot egasi"}
+            if access_store.add_admin(uid, (data.get("name") or "").strip()):
+                return {"ok": True, "message": f"Admin qo'shildi: {uid}"}
+            return {"error": "Allaqachon admin"}
+        if access_store.is_owner(uid):
+            return {"error": "Bot egasini o'chirib bo'lmaydi"}
+        if access_store.remove_admin(uid):
+            return {"ok": True, "message": f"Admin o'chirildi: {uid}"}
+        return {"error": "Admin topilmadi"}
+
+    if action == "group_remove":
+        raw = str(data.get("id", "")).strip()
+        if not raw.lstrip("-").isdigit():
+            return {"error": "ID raqam bo'lishi kerak"}
+        if access_store.remove_group(int(raw)):
+            return {"ok": True, "message": "Guruh olib tashlandi"}
+        return {"error": "Guruh topilmadi"}
+
     return {"error": f"Noma'lum amal: {action}"}
 
 
@@ -250,7 +287,8 @@ def create_app(ctx) -> web.Application:
 
         action = payload.get("action", "")
         try:
-            result = await _do_action(action, payload.get("data") or {}, ctx)
+            result = await _do_action(action, payload.get("data") or {},
+                                      {**ctx, "user_id": user.get("id")})
         except Exception as e:
             logger.exception("Mini App amali xato: %s", action)
             result = {"error": f"Xatolik: {e}"}

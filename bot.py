@@ -26,6 +26,7 @@ from telegram.ext import (
     Application, ContextTypes, MessageHandler, CommandHandler, CallbackQueryHandler, filters,
 )
 
+import access_store
 import batch_store
 import config
 import customer_store
@@ -259,9 +260,7 @@ def is_authorized(update: Update) -> bool:
         return False
     if chat.type != "private":
         return False
-    if config.ADMIN_USER_ID is not None and user.id != config.ADMIN_USER_ID:
-        return False
-    return True
+    return access_store.is_admin(user.id)
 
 
 def private_only(func):
@@ -278,7 +277,7 @@ def private_only(func):
                 "Botga shaxsiy xabar yozing va shu yerda qayta yuboring."
             )
             return
-        if config.ADMIN_USER_ID is not None and update.effective_user.id != config.ADMIN_USER_ID:
+        if not access_store.is_admin(update.effective_user.id):
             await message.reply_text("⛔ Sizda bu buyruqdan foydalanish huquqi yo'q.")
             return
         return await func(update, context)
@@ -373,15 +372,23 @@ async def status_text() -> str:
     gmail_ok, gmail_msg = await asyncio.to_thread(gmail_sender.check_credentials)
     gmail_line = ("✅ " if gmail_ok else "❌ ") + gmail_msg
 
-    group_line = (
-        f"{config.GROUP_CHAT_ID}" if config.GROUP_CHAT_ID is not None
-        else "belgilanmagan (barcha guruhlardan qabul qiladi)"
-    )
+    groups = access_store.all_groups()
+    if groups:
+        group_line = "\n" + "\n".join(
+            f"   • {gid} — {i.get('title') or '—'}" for gid, i in sorted(groups.items()))
+    else:
+        group_line = "belgilanmagan (barcha guruhlardan qabul qiladi)"
+
+    admins = access_store.all_admins()
+    admin_line = f"{len(access_store.admin_ids())} ta · egasi {access_store.owner_id()}"
+    if admins:
+        admin_line += "\n" + "\n".join(
+            f"   • {uid} — {i.get('name') or '—'}" for uid, i in sorted(admins.items()))
 
     return (
         "🩺 Bot holati\n\n"
-        f"Guruh ID: {group_line}\n"
-        f"Admin ID: {config.ADMIN_USER_ID or 'belgilanmagan'}\n"
+        f"Guruhlar: {group_line}\n"
+        f"Adminlar: {admin_line}\n"
         f"Gmail: {gmail_line}\n\n"
         f"👥 Mijozlar: {len(customers)} ta\n"
         f"📦 Kutilayotgan partiyalar: {len(batches)} ta ({total_files} fayl)\n"
@@ -390,6 +397,149 @@ async def status_text() -> str:
         "1) Guruhda /chatid yozib, yuqoridagi \"Guruh ID\" bilan solishtiring\n"
         "2) @BotFather → /setprivacy → Disable qilinganini tekshiring"
     )
+
+
+# ---------- Adminlar va guruhlarni boshqarish ----------
+
+def _owner_only(func):
+    """Faqat .env dagi ADMIN_USER_ID — admin ro'yxatini u boshqaradi."""
+    @functools.wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        message = update.effective_message
+        if message is None:
+            return
+        if not access_store.is_owner(update.effective_user.id):
+            await message.reply_text(
+                "⛔ Admin ro'yxatini faqat botning EGASI o'zgartira oladi."
+            )
+            return
+        return await func(update, context)
+    return wrapper
+
+
+def admins_text() -> str:
+    lines = [f"👤 Adminlar:\n", f"• {access_store.owner_id()} — EGASI (o'chirib bo'lmaydi)"]
+    for uid, info in sorted(access_store.all_admins().items()):
+        name = info.get("name") or "—"
+        lines.append(f"• {uid} — {name}")
+    lines.append("\nQo'shish: /admin_add ID [ism]\nO'chirish: /admin_remove ID")
+    lines.append("Kimningdir ID sini bilish uchun unga /myid ni yuborishni ayting.")
+    return "\n".join(lines)
+
+
+@private_only
+async def admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(admins_text())
+
+
+@_owner_only
+async def admin_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Format: /admin_add 123456789 Aziz"""
+    message = update.effective_message
+    parts = (message.text or "").split()
+    if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
+        await message.reply_text(
+            "Format: /admin_add ID [ism]\nMasalan: /admin_add 123456789 Aziz\n\n"
+            "ID ni bilish uchun o'sha odam botga /myid yozsin."
+        )
+        return
+    uid = int(parts[1])
+    name = " ".join(parts[2:])
+    if access_store.is_owner(uid):
+        await message.reply_text("Bu allaqachon botning egasi.")
+        return
+    if access_store.add_admin(uid, name):
+        await message.reply_text(f"✅ Admin qo'shildi: {uid} {name}".strip())
+        await safe_send(context, uid,
+                        "✅ Sizga export hujjatlar botini boshqarish huquqi berildi.\n"
+                        "Boshlash uchun /start yozing.")
+    else:
+        await message.reply_text("Bu foydalanuvchi allaqachon admin.")
+
+
+@_owner_only
+async def admin_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Format: /admin_remove 123456789"""
+    message = update.effective_message
+    parts = (message.text or "").split()
+    if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
+        await message.reply_text("Format: /admin_remove ID")
+        return
+    uid = int(parts[1])
+    if access_store.is_owner(uid):
+        await message.reply_text("⛔ Bot egasini ro'yxatdan o'chirib bo'lmaydi.")
+        return
+    if access_store.remove_admin(uid):
+        await message.reply_text(f"🗑 Admin o'chirildi: {uid}")
+    else:
+        await message.reply_text("Bunday admin topilmadi.")
+
+
+def groups_text() -> str:
+    groups = access_store.all_groups()
+    if not groups:
+        return ("📢 Guruhlar ro'yxati bo'sh — bot BARCHA guruhlardan hujjat qabul qiladi.\n\n"
+                "Cheklash uchun kerakli guruhda /group_add yozing.")
+    lines = ["📢 Hujjat qabul qilinadigan guruhlar:\n"]
+    for gid, info in sorted(groups.items()):
+        lines.append(f"• {gid} — {info.get('title') or '—'}")
+    lines.append("\nQo'shish: kerakli guruhda /group_add yozing")
+    lines.append("O'chirish: /group_remove ID")
+    return "\n".join(lines)
+
+
+@private_only
+async def groups_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(groups_text())
+
+
+async def group_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """GURUHDA yoziladi: /group_add — shu guruhni ro'yxatga qo'shadi."""
+    message = update.effective_message
+    chat = update.effective_chat
+    if message is None:
+        return
+    if chat.type not in ("group", "supergroup"):
+        await message.reply_text(
+            "Bu buyruq GURUHDA yoziladi — qaysi guruhni qo'shmoqchi bo'lsangiz, "
+            "o'sha guruhda /group_add deb yozing."
+        )
+        return
+    if not access_store.is_admin(update.effective_user.id):
+        await message.reply_text("⛔ Buni faqat bot admini qila oladi.")
+        return
+
+    if access_store.add_group(chat.id, chat.title or ""):
+        await message.reply_text(
+            f"✅ Bu guruh ro'yxatga qo'shildi.\n"
+            f"Nomi: {chat.title}\nID: {chat.id}\n\n"
+            f"Endi bu yerga tashlangan hujjatlar qabul qilinadi."
+        )
+        await notify_admin(context, f"➕ Yangi guruh qo'shildi: {chat.title} ({chat.id})")
+    else:
+        await message.reply_text("Bu guruh allaqachon ro'yxatda.")
+
+
+async def group_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guruhda: /group_remove  ·  Shaxsiy chatda: /group_remove ID"""
+    message = update.effective_message
+    chat = update.effective_chat
+    if message is None or not access_store.is_admin(update.effective_user.id):
+        return
+
+    parts = (message.text or "").split()
+    if len(parts) > 1 and parts[1].lstrip("-").isdigit():
+        gid = int(parts[1])
+    elif chat.type in ("group", "supergroup"):
+        gid = chat.id
+    else:
+        await message.reply_text("Format: /group_remove ID\nYoki kerakli guruhda /group_remove yozing.")
+        return
+
+    if access_store.remove_group(gid):
+        await message.reply_text(f"🗑 Guruh ro'yxatdan olib tashlandi: {gid}")
+    else:
+        await message.reply_text("Bunday guruh ro'yxatda yo'q.")
 
 
 @private_only
@@ -820,6 +970,12 @@ HELP_TEXT = (
     "/batch_attach KOD | ID\n"
     "/unmatched_attach_all — barcha noaniq fayllarni kodi bo'yicha biriktirish\n"
     "/unmatched_delete ID\n"
+    "/admins — adminlar ro'yxati\n"
+    "/admin_add ID [ism] — admin qo'shish (faqat bot egasi)\n"
+    "/admin_remove ID — adminni olib tashlash (faqat bot egasi)\n"
+    "/groups — guruhlar ro'yxati\n"
+    "/group_add — SHU guruhni qo'shish (guruhda yoziladi)\n"
+    "/group_remove [ID] — guruhni olib tashlash\n"
     "/status — bot va sozlamalar holati\n"
     "/gmail_check — Gmail ruxsati ishlayaptimi, tekshirish\n"
     "/myid — Telegram ID ingizni ko'rish\n"
@@ -912,9 +1068,7 @@ def _can_answer_in_group(update: Update) -> bool:
         return False
     if is_authorized(update):
         return True
-    if config.GROUP_CHAT_ID is not None:
-        return chat.id == config.GROUP_CHAT_ID
-    return chat.type in ("group", "supergroup")
+    return chat.type in ("group", "supergroup") and access_store.is_allowed_group(chat.id)
 
 
 async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1397,18 +1551,15 @@ def _in_allowed_chat(update: Update) -> bool:
     chat = update.effective_chat
     if chat is None:
         return False
-    if config.GROUP_CHAT_ID is not None:
-        if chat.id != config.GROUP_CHAT_ID:
-            # Sozlama noto'g'ri bo'lsa, bot "jim" qolib ketmasligi uchun log yozamiz.
-            # Guruh supergroup'ga aylantirilganda ID o'zgaradi - eng ko'p uchraydigan sabab.
-            logger.info(
-                "Hujjat e'tiborsiz qoldirildi: chat %s (%s) sozlamadagi GROUP_CHAT_ID=%s ga mos emas",
-                chat.id, chat.type, config.GROUP_CHAT_ID,
-            )
-            return False
-        return True
-    # GROUP_CHAT_ID belgilanmagan: faqat guruhlardan qabul qilamiz
-    return chat.type in ("group", "supergroup")
+    if chat.type not in ("group", "supergroup"):
+        return False
+    if not access_store.is_allowed_group(chat.id):
+        # Bot "jim" qolib ketmasligi uchun log yozamiz. Guruh supergroup'ga
+        # aylantirilganda ID o'zgaradi - eng ko'p uchraydigan sabab.
+        logger.info("Hujjat e'tiborsiz qoldirildi: %s (%s) ro'yxatdagi guruhlardan emas",
+                    chat.id, chat.type)
+        return False
+    return True
 
 
 def _extract_file(message):
@@ -2222,6 +2373,12 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("gmail_check", gmail_check_command))
+    app.add_handler(CommandHandler("admins", admins_command))
+    app.add_handler(CommandHandler("admin_add", admin_add_command))
+    app.add_handler(CommandHandler("admin_remove", admin_remove_command))
+    app.add_handler(CommandHandler("groups", groups_command))
+    app.add_handler(CommandHandler("group_add", group_add_command))
+    app.add_handler(CommandHandler("group_remove", group_remove_command))
     app.add_handler(CommandHandler("customer_add", customer_add_command))
     app.add_handler(CommandHandler("customer_remove", customer_remove_command))
     app.add_handler(CommandHandler("customer_list", customer_list_command))

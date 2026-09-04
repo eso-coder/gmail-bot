@@ -84,6 +84,7 @@
     <button data-tab="batches" class="on">📦 Partiyalar<span class="badge" id="b-batches">0</span></button>
     <button data-tab="customers">👥 Mijozlar<span class="badge" id="b-customers">0</span></button>
     <button data-tab="unmatched">❓ Noaniq<span class="badge" id="b-unmatched">0</span></button>
+    <button data-tab="access">⚙️</button>
   </div>
 </header>
 
@@ -91,6 +92,7 @@
   <section id="tab-batches"></section>
   <section id="tab-customers" hidden></section>
   <section id="tab-unmatched" hidden></section>
+  <section id="tab-access" hidden></section>
 </main>
 
 <div id="toast"></div>
@@ -150,7 +152,7 @@ function render(){
   if(!STATE) return;
   for(const k of ['batches','customers','unmatched'])
     document.getElementById('b-' + k).textContent = STATE[k].length;
-  renderBatches(); renderCustomers(); renderUnmatched();
+  renderBatches(); renderCustomers(); renderUnmatched(); renderAccess();
 }
 
 function renderBatches(){
@@ -244,6 +246,50 @@ function renderUnmatched(){
   </div>`).join('');
 }
 
+function renderAccess(){
+  const el = document.getElementById('tab-access');
+  const groups = STATE.groups.map(g => `<div class="card">
+    <div class="title">${esc(g.title) || '(nomsiz guruh)'}</div>
+    <div class="sub">${esc(g.id)}</div>
+    <div class="acts">
+      <button class="act danger" onclick="act('group_remove',{id:'${esc(g.id)}'},
+        'Guruh olib tashlansinmi? Undan hujjat qabul qilinmaydi.')">🗑 Olib tashlash</button>
+    </div>
+  </div>`).join('') || '<div class="card sub">Ro'yxat bo'sh — bot barcha guruhlardan qabul qiladi.</div>';
+
+  const admins = STATE.admins.map(a => `<div class="card">
+    <div class="title">${esc(a.name) || '(ismsiz)'}</div>
+    <div class="sub">${esc(a.id)}</div>
+    <div class="acts">
+      <button class="act danger" onclick="act('admin_remove',{id:'${esc(a.id)}'},
+        'Admin huquqi olib tashlansinmi?')">🗑 Olib tashlash</button>
+    </div>
+  </div>`).join('') || '<div class="card sub">Qo'shimcha admin yo'q.</div>';
+
+  el.innerHTML = `
+    <div class="card"><div class="title">📢 Guruhlar</div>
+      <div class="sub">Bot faqat shu guruhlardan hujjat qabul qiladi.
+      Yangi guruh qo'shish uchun o'sha guruhda <b>/group_add</b> deb yozing.</div></div>
+    ${groups}
+    <div class="card"><div class="title">👤 Adminlar</div>
+      <div class="sub">Egasi: ${esc(STATE.owner)} — o'chirib bo'lmaydi.<br>
+      ID ni bilish uchun o'sha odam botga <b>/myid</b> yozsin.</div></div>
+    ${admins}
+    <div class="card">
+      <div class="title">➕ Admin qo'shish</div>
+      <label>Telegram ID</label><input id="na-id" inputmode="numeric" placeholder="123456789">
+      <label>Ism (ixtiyoriy)</label><input id="na-name" placeholder="Aziz">
+      <div class="acts"><button class="act" onclick="addAdmin()">Qo'shish</button></div>
+    </div>`;
+}
+
+function addAdmin(){
+  const id = document.getElementById('na-id').value.trim();
+  const name = document.getElementById('na-name').value.trim();
+  if(!id){ toast('ID kiriting', true); return; }
+  act('admin_add', {id, name});
+}
+
 function addCustomer(){
   const name = document.getElementById('nc-name').value.trim();
   const emails = document.getElementById('nc-mail').value.trim();
@@ -261,7 +307,7 @@ document.querySelectorAll('.tabs button').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
-    for(const k of ['batches','customers','unmatched'])
+    for(const k of ['batches','customers','unmatched','access'])
       document.getElementById('tab-' + k).hidden = (k !== btn.dataset.tab);
   };
 });
