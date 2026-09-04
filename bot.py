@@ -1680,58 +1680,11 @@ async def _download(bot, file_id: str, local_dir: str, filename: str) -> str:
 ACK_DELAY_SECONDS = 5
 
 
-# ---------- Turi tanilmagan fayllar haqida ogohlantirish ----------
-#
-# Guruhga chek/pasport/haydovchi rasmi tashlanishi mumkin. Agar bunday
-# faylning nomida partiya kodi bo'lsa, jimgina tashlab yuborsak - hodim
-# hujjat qabul qilindi deb o'ylab qolishi mumkin. Shuning uchun bitta
-# qisqa ogohlantirish yozamiz (albom bo'lsa - hammasi uchun bitta).
-
-_pending_unknown = {}
-
-
-def _warn_unknown_type_sync(chat_id: int, code: str, display: str, filename: str, ext: str):
-    entry = _pending_unknown.setdefault((code, chat_id), {"display": display, "ext": ext, "files": []})
-    if filename not in entry["files"]:
-        entry["files"].append(filename)
-
-
-async def _warn_unknown_type(context: ContextTypes.DEFAULT_TYPE, chat_id: int, code: str,
-                             display: str, filename: str, parsed: dict):
-    _warn_unknown_type_sync(chat_id, code, display, filename, parsed.get("extension") or "jpg")
-
-    if context.job_queue is None:
-        await _flush_unknown(context, code, chat_id)
-        return
-    name = f"unknown:{code}:{chat_id}"
-    for job in context.job_queue.get_jobs_by_name(name):
-        job.schedule_removal()
-    context.job_queue.run_once(_unknown_job, ACK_DELAY_SECONDS, name=name,
-                               data={"code": code, "chat_id": chat_id})
-
-
-async def _unknown_job(context: ContextTypes.DEFAULT_TYPE):
-    await _flush_unknown(context, context.job.data["code"], context.job.data["chat_id"])
-
-
-async def _flush_unknown(context: ContextTypes.DEFAULT_TYPE, code: str, chat_id: int):
-    entry = _pending_unknown.pop((code, chat_id), None)
-    if not entry or not entry["files"]:
-        return
-
-    batch = batch_store.get_batch(code)
-    truck = (batch or {}).get("truck") or "565"
-    names = "\n".join(f"   • {n}" for n in entry["files"][:10])
-    more = f"\n   ... va yana {len(entry['files']) - 10} ta" if len(entry["files"]) > 10 else ""
-
-    await safe_send(
-        context, chat_id,
-        f"ℹ️ Bu fayl(lar) hisobga OLINMADI — hujjat turi tanilmadi:\n{names}{more}\n\n"
-        f"Mijozga faqat quyidagi turlar yuboriladi: "
-        f"{', '.join(doc_types.REQUIRED_ORDER)}.\n"
-        f"Agar bu kerakli hujjat bo'lsa, to'g'ri nom bilan qayta tashlang:\n"
-        f"   {entry['display']} ST {truck}.{entry['ext']}"
-    )
+# Turi tanilmagan fayllar (chek, pasport nusxasi, haydovchi rasmi va h.k.)
+# JIMGINA e'tiborsiz qoldiriladi - guruhga hech narsa yozilmaydi.
+# Ilgari har bir bunday fayl uchun ogohlantirish chiqarilardi va bu guruhni
+# keraksiz xabarlarga to'ldirib yuborardi. Bot faqat kalit hujjat turlarini
+# (INV, SPETS, ST, FITO, AKT, CMR, TIR) oladi, qolganiga umuman tegmaydi.
 
 
 def _naming_warnings(existing_batch, parsed, doc_type, truck, filename) -> list:
@@ -1787,13 +1740,10 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
 
     # ---- 0. Bu bizning hujjatimizmi? ----
     # Guruhga chek, pasport nusxasi, haydovchi rasmi kabi begona fayllar ham
-    # tashlanadi. Fayl nomida partiya kodi bo'lsa ham, hujjat TURI
-    # tanilmasa - u mijozga yuborilmasligi kerak. Shuning uchun bunday
-    # faylni yuklab ham olmaymiz, faqat guruhda ogohlantiramiz (agar bu
-    # haqiqatan kerakli hujjat bo'lsa, to'g'ri nom bilan qayta tashlanadi).
+    # tashlanadi. Hujjat TURI tanilmasa - fayl bizga tegishli emas: yuklab
+    # ham olinmaydi, guruhga xabar ham yozilmaydi. Faqat logga tushadi.
     if doc_type is None:
         logger.info("Turi tanilmagan fayl e'tiborsiz qoldirildi: %s (%s)", filename, code)
-        await _warn_unknown_type(context, chat_id, code, display, filename, parsed)
         return
 
     # ---- 1. Bu fayl ilgari pochtaga yuborilganmi? ----

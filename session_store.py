@@ -65,6 +65,11 @@ def parse(filename: str):
         extension   - "xlsx"
         is_declaration - yakuniy deklaratsiyami
     """
+    # Ketma-ket probellarni bittaga tushiramiz.
+    # "GG  33 AKT 178.jpg" (ikkita probel) da kod topilmay, uning o'rniga
+    # "AKT 178" kod deb o'qilardi va hujjat turi butunlay yo'qolardi.
+    filename = re.sub(r"\s+", " ", filename).strip()
+
     m = CODE_PATTERN.search(filename)
     if not m:
         return None
