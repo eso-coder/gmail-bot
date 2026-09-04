@@ -20,7 +20,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.error import BadRequest, Forbidden, NetworkError, TelegramError, TimedOut
 from telegram.ext import (
     Application, ContextTypes, MessageHandler, CommandHandler, CallbackQueryHandler, filters,
@@ -35,6 +35,7 @@ import sent_store
 import session_store
 import storage
 import unmatched_store
+import webapp
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -54,6 +55,9 @@ REMINDER_COOLDOWN_HOURS = 24
 CHECK_INTERVAL_HOURS = 6
 # Gmail ruxsati hali ishlayaptimi - shuncha soatda bir tekshiriladi
 GMAIL_CHECK_INTERVAL_HOURS = 6
+# Mini App manzili (HTTPS bo'lishi SHART). Bo'sh bo'lsa menyuda tugma chiqmaydi.
+WEBAPP_URL = (os.getenv("WEBAPP_URL") or "").strip()
+
 # Bitta menyuda ko'rsatiladigan maksimal tugma soni (Telegram cheklovi uchun)
 MAX_BUTTONS = 40
 
@@ -161,7 +165,12 @@ def _resolve(token: str, candidates) -> str:
 # ---------- Tugmali menyu (inline keyboard) ----------
 
 def kb_main() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+    rows = []
+    if WEBAPP_URL:
+        # Mini App - jadval ko'rinishidagi boshqaruv paneli
+        rows.append([InlineKeyboardButton("🖥 Boshqaruv paneli",
+                                          web_app=WebAppInfo(url=WEBAPP_URL))])
+    return InlineKeyboardMarkup(rows + [
         [InlineKeyboardButton("👥 Mijozlar", callback_data="menu:customers")],
         [InlineKeyboardButton("📦 Partiyalar", callback_data="menu:batches")],
         [InlineKeyboardButton("❓ Noaniq fayllar", callback_data="menu:unmatched")],
@@ -1294,8 +1303,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         results = await asyncio.to_thread(
             gmail_sender.send_batch_to_multiple,
             emails,
-            f"Комплект документов {display_code}",
-            f"Здравствуйте,\n\nКомплект документов {display_code}.\n\nС уважением.",
+            doc_types.email_subject(display_code, batch.get("truck")),
+            doc_types.email_body(display_code, batch.get("truck"), ordered),
             file_paths,
         )
     except Exception as e:
@@ -2015,6 +2024,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _post_init(app: Application):
+    await _start_webapp(app)
+
     problems = config.validate()
     for p in problems:
         logger.warning("SOZLAMA: %s", p)
@@ -2047,6 +2058,21 @@ async def _post_init(app: Application):
     class _Ctx:
         bot = app.bot
     await check_gmail_health(_Ctx())
+
+
+async def _start_webapp(app: Application):
+    """Mini App serverini bot bilan bir jarayonda ishga tushiradi."""
+
+    async def send_batch(code: str):
+        class _Ctx:
+            bot = app.bot
+            job_queue = app.job_queue
+        await _finalize_and_send(code, _Ctx(), notify_chat_id=config.ADMIN_USER_ID)
+
+    app.bot_data["webapp_runner"] = await webapp.start({
+        "send_batch": send_batch,
+        "attach_unmatched": _attach_unmatched,
+    })
 
 
 def main():

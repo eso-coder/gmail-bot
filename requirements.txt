@@ -1,5 +1,8 @@
 python-telegram-bot[job-queue]==22.8
 
+# Telegram Mini App (boshqaruv paneli) uchun kichik veb-server
+aiohttp>=3.10,<4
+
 # Xat yuborish uchun qo'shimcha kutubxona kerak emas - Python'ning o'z
 # smtplib moduli ishlatiladi (Gmail SMTP + ilova paroli).
 #

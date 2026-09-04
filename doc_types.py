@@ -133,6 +133,54 @@ FILE_GROUPS = [
 ]
 
 
+# Mijozga ketadigan xat uchun hujjat nomlari (rus tilida)
+RU_TITLES = {
+    "XLS": "Инвойс (таблица)",
+    "INV": "Инвойс",
+    "SPETS": "Спецификация",
+    "ST": "Сертификат происхождения",
+    "FITO": "Фитосанитарный сертификат",
+    "AKT": "Акт",
+    "CMR": "CMR",
+    "TIR": "TIR",
+    "DEKL": "Таможенная декларация",
+    "MANUAL": "Дополнительный документ",
+}
+
+
+def ru_title(doc_type: str) -> str:
+    return RU_TITLES.get(doc_type, "Документ")
+
+
+def email_body(display_code: str, truck: str, files: list) -> str:
+    """
+    Mijozga ketadigan xat matni: partiya kodi, fura raqami va
+    biriktirilgan hujjatlarning ro'yxati (turi + fayl nomi).
+    """
+    header = f"Комплект документов по партии {display_code}"
+    if truck:
+        header += f", фура {truck}"
+
+    lines = [
+        "Здравствуйте!",
+        "",
+        header + ".",
+        "",
+        f"Во вложении {len(files)} документ(ов):",
+    ]
+    for i, f in enumerate(files, 1):
+        lines.append(f"  {i}. {ru_title(f.get('doc_type'))} — {f.get('filename', '?')}")
+    lines += ["", "С уважением."]
+    return "\n".join(lines)
+
+
+def email_subject(display_code: str, truck: str) -> str:
+    subject = f"Комплект документов {display_code}"
+    if truck:
+        subject += f" · фура {truck}"
+    return subject
+
+
 def format_files(files: list) -> str:
     """
     Fayllarni guruhlab, o'qish qulay ro'yxat qilib qaytaradi:
