@@ -255,7 +255,7 @@ function renderAccess(){
       <button class="act danger" onclick="act('group_remove',{id:'${esc(g.id)}'},
         'Guruh olib tashlansinmi? Undan hujjat qabul qilinmaydi.')">🗑 Olib tashlash</button>
     </div>
-  </div>`).join('') || '<div class="card sub">Ro'yxat bo'sh — bot barcha guruhlardan qabul qiladi.</div>';
+  </div>`).join('') || `<div class="card sub">Ro'yxat bo'sh — bot barcha guruhlardan qabul qiladi.</div>`;
 
   const admins = STATE.admins.map(a => `<div class="card">
     <div class="title">${esc(a.name) || '(ismsiz)'}</div>
@@ -264,7 +264,7 @@ function renderAccess(){
       <button class="act danger" onclick="act('admin_remove',{id:'${esc(a.id)}'},
         'Admin huquqi olib tashlansinmi?')">🗑 Olib tashlash</button>
     </div>
-  </div>`).join('') || '<div class="card sub">Qo'shimcha admin yo'q.</div>';
+  </div>`).join('') || `<div class="card sub">Qo'shimcha admin yo'q.</div>`;
 
   el.innerHTML = `
     <div class="card"><div class="title">📢 Guruhlar</div>
