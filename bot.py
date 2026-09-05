@@ -13,6 +13,7 @@ To'xtatish: Ctrl+C
 import asyncio
 import functools
 import hashlib
+import html
 import logging
 import os
 import re
@@ -94,10 +95,10 @@ def format_elapsed(seconds) -> str:
     hours, rem = divmod(rem, 3600)
     minutes = rem // 60
     if days:
-        return f"{days} kun {hours} soat"
+        return f"{days} кун {hours} соат"
     if hours:
-        return f"{hours} soat {minutes} daqiqa"
-    return f"{minutes} daqiqa"
+        return f"{hours} соат {minutes} дақиқа"
+    return f"{minutes} дақиқа"
 
 
 def batch_display_code(code: str, batch: dict = None) -> str:
@@ -171,49 +172,49 @@ def kb_main() -> InlineKeyboardMarkup:
     rows = []
     if WEBAPP_URL:
         # Mini App - jadval ko'rinishidagi boshqaruv paneli
-        rows.append([InlineKeyboardButton("🖥 Boshqaruv paneli",
+        rows.append([InlineKeyboardButton("🖥 Бошқарув панели",
                                           web_app=WebAppInfo(url=WEBAPP_URL))])
     return InlineKeyboardMarkup(rows + [
-        [InlineKeyboardButton("👥 Mijozlar", callback_data="menu:customers")],
-        [InlineKeyboardButton("📦 Partiyalar", callback_data="menu:batches")],
-        [InlineKeyboardButton("❓ Noaniq fayllar", callback_data="menu:unmatched")],
-        [InlineKeyboardButton("🩺 Holat", callback_data="menu:status")],
-        [InlineKeyboardButton("ℹ️ Yordam", callback_data="menu:help")],
+        [InlineKeyboardButton("👥 Мижозлар", callback_data="menu:customers")],
+        [InlineKeyboardButton("📦 Партиялар", callback_data="menu:batches")],
+        [InlineKeyboardButton("❓ Ноаниқ файллар", callback_data="menu:unmatched")],
+        [InlineKeyboardButton("🩺 Ҳолат", callback_data="menu:status")],
+        [InlineKeyboardButton("ℹ️ Ёрдам", callback_data="menu:help")],
     ])
 
 
 def kb_customers() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Mijoz qo'shish", callback_data="cust:add_start")],
-        [InlineKeyboardButton("📜 Ro'yxat", callback_data="cust:list")],
-        [InlineKeyboardButton("🗑 O'chirish", callback_data="cust:remove_pick")],
-        [InlineKeyboardButton("🔤 Alias qo'shish", callback_data="cust:alias_pick")],
-        [InlineKeyboardButton("🔗 Prefiks bog'lash", callback_data="cust:prefix_pick")],
-        [InlineKeyboardButton("⬅️ Bosh menyu", callback_data="menu:main")],
+        [InlineKeyboardButton("➕ Мижоз қўшиш", callback_data="cust:add_start")],
+        [InlineKeyboardButton("📜 Рўйхат", callback_data="cust:list")],
+        [InlineKeyboardButton("🗑 Ўчириш", callback_data="cust:remove_pick")],
+        [InlineKeyboardButton("🔤 Alias қўшиш", callback_data="cust:alias_pick")],
+        [InlineKeyboardButton("🔗 Префикс боғлаш", callback_data="cust:prefix_pick")],
+        [InlineKeyboardButton("⬅️ Бош меню", callback_data="menu:main")],
     ])
 
 
 def kb_batches() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📜 Ro'yxat", callback_data="batch:list")],
-        [InlineKeyboardButton("👤 Mijoz belgilash", callback_data="batch:assign_pick")],
-        [InlineKeyboardButton("📤 Qo'lda yuborish", callback_data="batch:send_pick")],
-        [InlineKeyboardButton("❌ Bekor qilish", callback_data="batch:cancel_pick")],
-        [InlineKeyboardButton("⬅️ Bosh menyu", callback_data="menu:main")],
+        [InlineKeyboardButton("📜 Рўйхат", callback_data="batch:list")],
+        [InlineKeyboardButton("👤 Мижоз белгилаш", callback_data="batch:assign_pick")],
+        [InlineKeyboardButton("📤 Қўлда юбориш", callback_data="batch:send_pick")],
+        [InlineKeyboardButton("❌ Бекор қилиш", callback_data="batch:cancel_pick")],
+        [InlineKeyboardButton("⬅️ Бош меню", callback_data="menu:main")],
     ])
 
 
 def kb_unmatched() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📜 Ro'yxat", callback_data="unmatched:list")],
-        [InlineKeyboardButton("🔗 Partiyaga biriktirish", callback_data="unmatched:attach_pick")],
-        [InlineKeyboardButton("🗑 O'chirish", callback_data="unmatched:delete_pick")],
-        [InlineKeyboardButton("⬅️ Bosh menyu", callback_data="menu:main")],
+        [InlineKeyboardButton("📜 Рўйхат", callback_data="unmatched:list")],
+        [InlineKeyboardButton("🔗 Партияга бириктириш", callback_data="unmatched:attach_pick")],
+        [InlineKeyboardButton("🗑 Ўчириш", callback_data="unmatched:delete_pick")],
+        [InlineKeyboardButton("⬅️ Бош меню", callback_data="menu:main")],
     ])
 
 
 def kb_back(callback_data: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Orqaga", callback_data=callback_data)]])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Орқага", callback_data=callback_data)]])
 
 
 def kb_pick_customer(action_prefix: str, back_callback: str) -> InlineKeyboardMarkup:
@@ -221,8 +222,8 @@ def kb_pick_customer(action_prefix: str, back_callback: str) -> InlineKeyboardMa
     rows = [[InlineKeyboardButton(name[:60], callback_data=f"{action_prefix}:{_tok(name)}")]
             for name in sorted(data)][:MAX_BUTTONS]
     if not rows:
-        rows = [[InlineKeyboardButton("(mijozlar yo'q)", callback_data="noop")]]
-    rows.append([InlineKeyboardButton("⬅️ Orqaga", callback_data=back_callback)])
+        rows = [[InlineKeyboardButton("(мижозлар йўқ)", callback_data="noop")]]
+    rows.append([InlineKeyboardButton("⬅️ Орқага", callback_data=back_callback)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -230,12 +231,12 @@ def kb_pick_batch(action_prefix: str, back_callback: str) -> InlineKeyboardMarku
     data = batch_store.all_batches()
     rows = []
     for code, b in sorted(data.items()):
-        label = f"{batch_display_code(code, b)} ({b.get('customer') or '❓'}, {len(b.get('files', []))} fayl)"
+        label = f"{batch_display_code(code, b)} ({b.get('customer') or '❓'}, {len(b.get('files', []))} файл)"
         rows.append([InlineKeyboardButton(label[:60], callback_data=f"{action_prefix}:{_tok(code)}")])
     rows = rows[:MAX_BUTTONS]
     if not rows:
-        rows = [[InlineKeyboardButton("(partiyalar yo'q)", callback_data="noop")]]
-    rows.append([InlineKeyboardButton("⬅️ Orqaga", callback_data=back_callback)])
+        rows = [[InlineKeyboardButton("(партиялар йўқ)", callback_data="noop")]]
+    rows.append([InlineKeyboardButton("⬅️ Орқага", callback_data=back_callback)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -247,8 +248,8 @@ def kb_pick_unmatched(action_prefix: str, back_callback: str) -> InlineKeyboardM
         rows.append([InlineKeyboardButton(label, callback_data=f"{action_prefix}:{entry_id}")])
     rows = rows[:MAX_BUTTONS]
     if not rows:
-        rows = [[InlineKeyboardButton("(noaniq fayllar yo'q)", callback_data="noop")]]
-    rows.append([InlineKeyboardButton("⬅️ Orqaga", callback_data=back_callback)])
+        rows = [[InlineKeyboardButton("(ноаниқ файллар йўқ)", callback_data="noop")]]
+    rows.append([InlineKeyboardButton("⬅️ Орқага", callback_data=back_callback)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -274,12 +275,12 @@ def private_only(func):
             return
         if update.effective_chat.type != "private":
             await message.reply_text(
-                "🔒 Bu buyruq faqat botning shaxsiy chatida ishlaydi.\n"
-                "Botga shaxsiy xabar yozing va shu yerda qayta yuboring."
+                "🔒 Бу буйруқ фақат ботнинг шахсий чатида ишлайди.\n"
+                "Ботга шахсий хабар ёзинг ва шу ерда қайта юборинг."
             )
             return
         if not access_store.is_admin(update.effective_user.id):
-            await message.reply_text("⛔ Sizda bu buyruqdan foydalanish huquqi yo'q.")
+            await message.reply_text("⛔ Сизда бу буйруқдан фойдаланиш ҳуқуқи йўқ.")
             return
         return await func(update, context)
     return wrapper
@@ -296,13 +297,60 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
 
 
 async def safe_send(context: ContextTypes.DEFAULT_TYPE, chat_id, text: str,
-                    reply_markup=None) -> None:
+                    reply_markup=None, parse_mode=None) -> None:
     if not chat_id:
         return
     try:
-        await context.bot.send_message(chat_id, text, reply_markup=reply_markup)
+        await context.bot.send_message(chat_id, text, reply_markup=reply_markup,
+                                       parse_mode=parse_mode)
+    except BadRequest as e:
+        # Belgilash (mention) uchun HTML ishlatilganda matnda kutilmagan
+        # teg bo'lsa Telegram rad etadi - xabar butunlay yo'qolmasin
+        if parse_mode:
+            logger.warning("HTML xabar rad etildi (%s), oddiy matn sifatida qayta yuborilmoqda", e)
+            await safe_send(context, chat_id, re.sub(r"<[^>]+>", "", text),
+                            reply_markup=reply_markup)
+            return
+        logger.warning("%s chatiga xabar yuborilmadi: %s", chat_id, e)
     except TelegramError as e:
         logger.warning("%s chatiga xabar yuborilmadi: %s", chat_id, e)
+
+
+# ---------- Hujjatni yuborgan odamni belgilash ----------
+
+def _user_name(user) -> str:
+    """Telegram foydalanuvchisidan ko'rsatiladigan nom."""
+    if user is None:
+        return ""
+    return (getattr(user, "full_name", "") or "").strip() or (user.username or "")
+
+
+def _mention(user_id, name: str) -> str:
+    """HTML havola — odam guruhda haqiqiy bildirishnoma oladi."""
+    label = html.escape(name or "ходим")
+    return f'<a href="tg://user?id={user_id}">{label}</a>' if user_id else label
+
+
+def _batch_mentions(batch: dict, extra_user=None) -> str:
+    """
+    Partiyaga fayl tashlagan odamlarni belgilaydi (takrorlanmasdan).
+    `extra_user` — deklaratsiyani hozir tashlagan odam; u birinchi turadi.
+    """
+    parts, seen = [], set()
+
+    def push(uid, name):
+        key = uid or (name or "").lower()
+        if not key or key in seen:
+            return
+        seen.add(key)
+        parts.append(_mention(uid, name))
+
+    if extra_user is not None:
+        push(extra_user.id, _user_name(extra_user))
+    for f in (batch or {}).get("files", []):
+        push(f.get("user_id"), f.get("user_name"))
+
+    return ", ".join(parts)
 
 
 async def safe_edit(query, text: str, reply_markup=None) -> None:
@@ -329,22 +377,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if not is_authorized(update):
         await message.reply_text(
-            f"👋 Salom! Bu bot faqat administrator uchun boshqariladi.\n"
-            f"Sizning Telegram ID: {update.effective_user.id}"
+            f"👋 Салом! Бу бот фақат администратор учун бошқарилади.\n"
+            f"Сизнинг Telegram ID: {update.effective_user.id}"
         )
         return
 
     context.user_data.pop("awaiting", None)
     await message.reply_text(
-        "👋 Salom! Men export hujjatlar botiman.\n\n"
-        "📋 Nima qila olaman:\n"
-        "📥 Guruhga tashlangan hujjatlarni yig'aman (fayl nomidagi kod bo'yicha)\n"
-        "📨 Deklaratsiya kelganda — barcha hujjatlarni bitta xatga ilova qilib, "
-        "mijoz emailiga yuboraman\n"
-        "👥 Mijozlarni (nom, email, prefiks, alias) boshqarish\n"
-        "📦 Kutilayotgan partiyalarni kuzatish va boshqarish\n"
-        "❓ Mijozi aniqlanmagan fayllarni yo'qotmasdan saqlab, keyin biriktirish\n\n"
-        "Quyidagi menyudan kerakli bo'limni tanlang 👇",
+        "👋 Салом! Мен экспорт ҳужжатлар ботиман.\n\n"
+        "📋 Нима қила оламан:\n"
+        "📥 Гуруҳга ташланган ҳужжатларни йиғаман (файл номидаги код бўйича)\n"
+        "📨 Декларация келганда — барча ҳужжатларни битта хатга илова қилиб, "
+        "мижоз emailiga юбораман\n"
+        "👥 Мижозларни (ном, email, префикс, alias) бошқариш\n"
+        "📦 Кутилаётган партияларни кузатиш ва бошқариш\n"
+        "❓ Мижози аниқланмаган файлларни йўқотмасдан сақлаб, кейин бириктириш\n\n"
+        "Қуйидаги менюдан керакли бўлимни танланг 👇",
         reply_markup=kb_main(),
     )
 
@@ -352,13 +400,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     if message:
-        await message.reply_text(f"Sizning Telegram ID: {update.effective_user.id}")
+        await message.reply_text(f"Сизнинг Telegram ID: {update.effective_user.id}")
 
 
 async def chatid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     if message:
-        await message.reply_text(f"Ushbu chat ID: {update.effective_chat.id}")
+        await message.reply_text(f"Ушбу чат ID: {update.effective_chat.id}")
 
 
 # ---------- Holat (diagnostika) ----------
@@ -378,25 +426,25 @@ async def status_text() -> str:
         group_line = "\n" + "\n".join(
             f"   • {gid} — {i.get('title') or '—'}" for gid, i in sorted(groups.items()))
     else:
-        group_line = "belgilanmagan (barcha guruhlardan qabul qiladi)"
+        group_line = "белгиланмаган (барча гуруҳлардан қабул қилади)"
 
     admins = access_store.all_admins()
-    admin_line = f"{len(access_store.admin_ids())} ta · egasi {access_store.owner_id()}"
+    admin_line = f"{len(access_store.admin_ids())} та · эгаси {access_store.owner_id()}"
     if admins:
         admin_line += "\n" + "\n".join(
             f"   • {uid} — {i.get('name') or '—'}" for uid, i in sorted(admins.items()))
 
     return (
-        "🩺 Bot holati\n\n"
-        f"Guruhlar: {group_line}\n"
-        f"Adminlar: {admin_line}\n"
+        "🩺 Бот ҳолати\n\n"
+        f"Гуруҳлар: {group_line}\n"
+        f"Админлар: {admin_line}\n"
         f"Gmail: {gmail_line}\n\n"
-        f"👥 Mijozlar: {len(customers)} ta\n"
-        f"📦 Kutilayotgan partiyalar: {len(batches)} ta ({total_files} fayl)\n"
-        f"❓ Noaniq fayllar: {unmatched_store.count()} ta\n\n"
-        "Agar bot guruhdagi fayllarni ko'rmayotgan bo'lsa:\n"
-        "1) Guruhda /chatid yozib, yuqoridagi \"Guruh ID\" bilan solishtiring\n"
-        "2) @BotFather → /setprivacy → Disable qilinganini tekshiring"
+        f"👥 Мижозлар: {len(customers)} ta\n"
+        f"📦 Кутилаётган партиялар: {len(batches)} та ({total_files} файл)\n"
+        f"❓ Ноаниқ файллар: {unmatched_store.count()} ta\n\n"
+        "Агар бот гуруҳдаги файлларни кўрмаётган бўлса:\n"
+        "1) Гуруҳда /chatid ёзиб, юқоридаги \"Гуруҳ ID\" билан солиштиринг\n"
+        "2) @BotFather → /setprivacy → Disable қилинганини текширинг"
     )
 
 
@@ -411,7 +459,7 @@ def _owner_only(func):
             return
         if not access_store.is_owner(update.effective_user.id):
             await message.reply_text(
-                "⛔ Admin ro'yxatini faqat botning EGASI o'zgartira oladi."
+                "⛔ Админ рўйхатини фақат ботнинг ЭГАСИ ўзгартира олади."
             )
             return
         return await func(update, context)
@@ -419,12 +467,12 @@ def _owner_only(func):
 
 
 def admins_text() -> str:
-    lines = [f"👤 Adminlar:\n", f"• {access_store.owner_id()} — EGASI (o'chirib bo'lmaydi)"]
+    lines = [f"👤 Админлар:\n", f"• {access_store.owner_id()} — ЭГАСИ (ўчириб бўлмайди)"]
     for uid, info in sorted(access_store.all_admins().items()):
         name = info.get("name") or "—"
         lines.append(f"• {uid} — {name}")
-    lines.append("\nQo'shish: /admin_add ID [ism]\nO'chirish: /admin_remove ID")
-    lines.append("Kimningdir ID sini bilish uchun unga /myid ni yuborishni ayting.")
+    lines.append("\nҚўшиш: /admin_add ID [исм]\nЎчириш: /admin_remove ID")
+    lines.append("Кимнингдир ID сини билиш учун унга /myid ни юборишни айтинг.")
     return "\n".join(lines)
 
 
@@ -440,22 +488,22 @@ async def admin_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     parts = (message.text or "").split()
     if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
         await message.reply_text(
-            "Format: /admin_add ID [ism]\nMasalan: /admin_add 123456789 Aziz\n\n"
-            "ID ni bilish uchun o'sha odam botga /myid yozsin."
+            "Формат: /admin_add ID [исм]\nМасалан: /admin_add 123456789 Aziz\n\n"
+            "ID ни билиш учун ўша одам ботга /myid ёзсин."
         )
         return
     uid = int(parts[1])
     name = " ".join(parts[2:])
     if access_store.is_owner(uid):
-        await message.reply_text("Bu allaqachon botning egasi.")
+        await message.reply_text("Бу аллақачон ботнинг эгаси.")
         return
     if access_store.add_admin(uid, name):
-        await message.reply_text(f"✅ Admin qo'shildi: {uid} {name}".strip())
+        await message.reply_text(f"✅ Админ қўшилди: {uid} {name}".strip())
         await safe_send(context, uid,
-                        "✅ Sizga export hujjatlar botini boshqarish huquqi berildi.\n"
-                        "Boshlash uchun /start yozing.")
+                        "✅ Сизга экспорт ҳужжатлар ботини бошқариш ҳуқуқи берилди.\n"
+                        "Бошлаш учун /start ёзинг.")
     else:
-        await message.reply_text("Bu foydalanuvchi allaqachon admin.")
+        await message.reply_text("Бу фойдаланувчи аллақачон админ.")
 
 
 @_owner_only
@@ -464,28 +512,28 @@ async def admin_remove_command(update: Update, context: ContextTypes.DEFAULT_TYP
     message = update.effective_message
     parts = (message.text or "").split()
     if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
-        await message.reply_text("Format: /admin_remove ID")
+        await message.reply_text("Формат: /admin_remove ID")
         return
     uid = int(parts[1])
     if access_store.is_owner(uid):
-        await message.reply_text("⛔ Bot egasini ro'yxatdan o'chirib bo'lmaydi.")
+        await message.reply_text("⛔ Бот эгасини рўйхатдан ўчириб бўлмайди.")
         return
     if access_store.remove_admin(uid):
-        await message.reply_text(f"🗑 Admin o'chirildi: {uid}")
+        await message.reply_text(f"🗑 Админ ўчирилди: {uid}")
     else:
-        await message.reply_text("Bunday admin topilmadi.")
+        await message.reply_text("Бундай админ топилмади.")
 
 
 def groups_text() -> str:
     groups = access_store.all_groups()
     if not groups:
-        return ("📢 Guruhlar ro'yxati bo'sh — bot BARCHA guruhlardan hujjat qabul qiladi.\n\n"
-                "Cheklash uchun kerakli guruhda /group_add yozing.")
-    lines = ["📢 Hujjat qabul qilinadigan guruhlar:\n"]
+        return ("📢 Гуруҳлар рўйхати бўш — бот БАРЧА гуруҳлардан ҳужжат қабул қилади.\n\n"
+                "Чеклаш учун керакли гуруҳда /group_add ёзинг.")
+    lines = ["📢 Ҳужжат қабул қилинадиган гуруҳлар:\n"]
     for gid, info in sorted(groups.items()):
         lines.append(f"• {gid} — {info.get('title') or '—'}")
-    lines.append("\nQo'shish: kerakli guruhda /group_add yozing")
-    lines.append("O'chirish: /group_remove ID")
+    lines.append("\nҚўшиш: керакли гуруҳда /group_add ёзинг")
+    lines.append("Ўчириш: /group_remove ID")
     return "\n".join(lines)
 
 
@@ -502,23 +550,23 @@ async def group_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if chat.type not in ("group", "supergroup"):
         await message.reply_text(
-            "Bu buyruq GURUHDA yoziladi — qaysi guruhni qo'shmoqchi bo'lsangiz, "
-            "o'sha guruhda /group_add deb yozing."
+            "Бу буйруқ ГУРУҲДА ёзилади — қайси гуруҳни қўшмоқчи бўлсангиз, "
+            "ўша гуруҳда /group_add деб ёзинг."
         )
         return
     if not access_store.is_admin(update.effective_user.id):
-        await message.reply_text("⛔ Buni faqat bot admini qila oladi.")
+        await message.reply_text("⛔ Буни фақат бот админи қила олади.")
         return
 
     if access_store.add_group(chat.id, chat.title or ""):
         await message.reply_text(
-            f"✅ Bu guruh ro'yxatga qo'shildi.\n"
-            f"Nomi: {chat.title}\nID: {chat.id}\n\n"
-            f"Endi bu yerga tashlangan hujjatlar qabul qilinadi."
+            f"✅ Бу гуруҳ рўйхатга қўшилди.\n"
+            f"Номи: {chat.title}\nID: {chat.id}\n\n"
+            f"Энди бу ерга ташланган ҳужжатлар қабул қилинади."
         )
-        await notify_admin(context, f"➕ Yangi guruh qo'shildi: {chat.title} ({chat.id})")
+        await notify_admin(context, f"➕ Янги гуруҳ қўшилди: {chat.title} ({chat.id})")
     else:
-        await message.reply_text("Bu guruh allaqachon ro'yxatda.")
+        await message.reply_text("Бу гуруҳ аллақачон рўйхатда.")
 
 
 async def group_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -534,13 +582,13 @@ async def group_remove_command(update: Update, context: ContextTypes.DEFAULT_TYP
     elif chat.type in ("group", "supergroup"):
         gid = chat.id
     else:
-        await message.reply_text("Format: /group_remove ID\nYoki kerakli guruhda /group_remove yozing.")
+        await message.reply_text("Формат: /group_remove ID\nЁки керакли гуруҳда /group_remove ёзинг.")
         return
 
     if access_store.remove_group(gid):
-        await message.reply_text(f"🗑 Guruh ro'yxatdan olib tashlandi: {gid}")
+        await message.reply_text(f"🗑 Гуруҳ рўйхатдан олиб ташланди: {gid}")
     else:
-        await message.reply_text("Bunday guruh ro'yxatda yo'q.")
+        await message.reply_text("Бундай гуруҳ рўйхатда йўқ.")
 
 
 @private_only
@@ -565,7 +613,7 @@ async def customer_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
     payload = (message.text or "").split(maxsplit=1)
     if len(payload) < 2 or "|" not in payload[1]:
         await message.reply_text(
-            "Format: /customer_add NOMI | email1, email2\n\n"
+            "Формат: /customer_add НОМИ | email1, email2\n\n"
             "Masalan:\n/customer_add SARBON | galaxy@gmail.com, edwdw@mail.ru"
         )
         return
@@ -575,19 +623,19 @@ async def customer_add_command(update: Update, context: ContextTypes.DEFAULT_TYP
     emails = [e.strip() for e in emails_part.split(",") if e.strip()]
 
     if not name or not emails:
-        await message.reply_text("Xatolik: kompaniya nomi yoki email bo'sh bo'lmasligi kerak.")
+        await message.reply_text("Хатолик: компания номи ёки email бўш бўлмаслиги керак.")
         return
 
     valid, invalid = _validate_emails(emails)
     if invalid:
         await message.reply_text(
-            "❌ Bu manzillar email ko'rinishida emas: " + ", ".join(invalid) +
-            "\n\nTo'g'rilab qayta yuboring."
+            "❌ Бу манзиллар email кўринишида эмас: " + ", ".join(invalid) +
+            "\n\nТўғрилаб қайта юборинг."
         )
         return
 
     customer_store.add_customer(name, valid)
-    await message.reply_text(f"✅ Mijoz saqlandi: {name.upper()}\nEmaillar: {', '.join(valid)}")
+    await message.reply_text(f"✅ Мижоз сақланди: {name.upper()}\nEmaillar: {', '.join(valid)}")
 
 
 @private_only
@@ -596,29 +644,29 @@ async def customer_remove_command(update: Update, context: ContextTypes.DEFAULT_
     message = update.effective_message
     payload = (message.text or "").split(maxsplit=1)
     if len(payload) < 2:
-        await message.reply_text("Format: /customer_remove NOMI")
+        await message.reply_text("Формат: /customer_remove НОМИ")
         return
     name = payload[1].strip()
     if customer_store.remove_customer(name):
         session_store.forget_customer(name.strip().upper())
-        await message.reply_text(f"🗑 O'chirildi: {name.upper()}")
+        await message.reply_text(f"🗑 Ўчирилди: {name.upper()}")
     else:
-        await message.reply_text(f"\"{name}\" nomli mijoz topilmadi.")
+        await message.reply_text(f"\"{name}\" номли мижоз топилмади.")
 
 
 def customers_text() -> str:
     data = customer_store.load_customers()
     if not data:
-        return "Mijozlar ro'yxati bo'sh."
-    lines = ["📋 Mijozlar ro'yxati:\n"]
+        return "Мижозлар рўйхати бўш."
+    lines = ["📋 Мижозлар рўйхати:\n"]
     for name, info in sorted(data.items()):
         extras = []
         if info.get("prefixes"):
-            extras.append(f"prefiks: {', '.join(info['prefixes'])}")
+            extras.append(f"префикс: {', '.join(info['prefixes'])}")
         if info.get("aliases"):
             extras.append(f"alias: {', '.join(info['aliases'])}")
         extra_str = f" [{'; '.join(extras)}]" if extras else ""
-        emails = ", ".join(info.get("emails", [])) or "⚠️ email yo'q"
+        emails = ", ".join(info.get("emails", [])) or "⚠️ email йўқ"
         lines.append(f"• {name} — {emails}{extra_str}")
     return "\n".join(lines)
 
@@ -635,9 +683,9 @@ async def customer_alias_command(update: Update, context: ContextTypes.DEFAULT_T
     payload = (message.text or "").split(maxsplit=1)
     if len(payload) < 2 or "|" not in payload[1]:
         await message.reply_text(
-            "Format: /customer_alias NOMI | ALIAS1, ALIAS2\n\n"
-            "Masalan: /customer_alias VIZOR STEP-ORC | VIZOR STEPORC, VIZOR\n\n"
-            "Fayl nomida NOMI yoki shu aliaslardan biri uchrasa, mijoz avtomatik topiladi."
+            "Формат: /customer_alias НОМИ | ALIAS1, ALIAS2\n\n"
+            "Масалан: /customer_alias VIZOR STEP-ORC | VIZOR STEPORC, VIZOR\n\n"
+            "Файл номида НОМИ ёки шу aliaslarдан бири учраса, мижоз автоматик топилади."
         )
         return
     name_part, aliases_part = payload[1].split("|", 1)
@@ -645,15 +693,15 @@ async def customer_alias_command(update: Update, context: ContextTypes.DEFAULT_T
     aliases = [a.strip() for a in aliases_part.split(",") if a.strip()]
 
     if not customer_store.exists(name):
-        await message.reply_text(f"\"{name}\" nomli mijoz topilmadi. Avval /customer_add bilan qo'shing.")
+        await message.reply_text(f"\"{name}\" номли мижоз топилмади. Аввал /customer_add билан қўшинг.")
         return
 
     added, skipped = _apply_aliases(name, aliases)
-    text = f"✅ {name.upper()} uchun aliaslar qo'shildi: {', '.join(added)}" if added \
-        else "Hech qanday alias qo'shilmadi."
+    text = f"✅ {name.upper()} учун aliaslar қўшилди: {', '.join(added)}" if added \
+        else "Ҳеч қандай alias қўшилмади."
     if skipped:
-        text += (f"\n⚠️ Juda qisqa (xato mos kelib qolishi mumkin) bo'lgani uchun "
-                 f"qabul qilinmadi: {', '.join(skipped)}")
+        text += (f"\n⚠️ Жуда қисқа (хато мос келиб қолиши мумкин) бўлгани учун "
+                 f"қабул қилинмади: {', '.join(skipped)}")
     await message.reply_text(text)
 
 
@@ -678,9 +726,9 @@ async def prefix_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     payload = (message.text or "").split(maxsplit=1)
     if len(payload) < 2 or "|" not in payload[1]:
         await message.reply_text(
-            "Format: /prefix_add PREFIKS | MIJOZ_NOMI\n\n"
+            "Формат: /prefix_add ПРЕФИКС | MIJOZ_NOMI\n\n"
             "Masalan: /prefix_add NG | VIZOR STEP-ORC\n\n"
-            "(Mijoz avval /customer_add bilan qo'shilgan bo'lishi kerak)"
+            "(Мижоз аввал /customer_add билан қўшилган бўлиши керак)"
         )
         return
     prefix_part, name_part = payload[1].split("|", 1)
@@ -690,14 +738,14 @@ async def prefix_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if customer_store.add_prefix(prefix, name):
         clean = re.sub(r"[^A-Za-zА-Яа-я]", "", prefix).upper()
         await message.reply_text(
-            f"✅ Prefiks bog'landi: {clean}- -> {name.upper()}\n"
-            f"Endi shu prefiks bilan boshlangan barcha kodlar ({clean}-1, "
-            f"{clean}-2 va h.k.) avtomatik shu mijozga yuboriladi."
+            f"✅ Префикс боғланди: {clean}- -> {name.upper()}\n"
+            f"Энди шу префикс билан бошланган барча кодлар ({clean}-1, "
+            f"{clean}-2 ва ҳ.к.) автоматик шу мижозга юборилади."
         )
     else:
         await message.reply_text(
-            f"Bog'lanmadi. \"{name}\" nomli mijoz mavjudligini va prefiks bo'sh "
-            f"emasligini tekshiring (/customer_list)."
+            f"Боғланмади. \"{name}\" номли мижоз мавжудлигини ва префикс бўш "
+            f"эмаслигини текширинг (/customer_list)."
         )
 
 
@@ -707,13 +755,13 @@ async def prefix_remove_command(update: Update, context: ContextTypes.DEFAULT_TY
     message = update.effective_message
     payload = (message.text or "").split(maxsplit=1)
     if len(payload) < 2:
-        await message.reply_text("Format: /prefix_remove PREFIKS")
+        await message.reply_text("Формат: /prefix_remove ПРЕФИКС")
         return
     prefix = payload[1].strip()
     if customer_store.remove_prefix(prefix):
-        await message.reply_text(f"🗑 Prefiks o'chirildi: {prefix.upper()}")
+        await message.reply_text(f"🗑 Префикс ўчирилди: {prefix.upper()}")
     else:
-        await message.reply_text(f"\"{prefix}\" prefiksi topilmadi.")
+        await message.reply_text(f"\"{prefix}\" префикси топилмади.")
 
 
 # ---------- Partiyalarni boshqarish (shaxsiy chatda) ----------
@@ -721,8 +769,8 @@ async def prefix_remove_command(update: Update, context: ContextTypes.DEFAULT_TY
 def batches_text() -> str:
     data = batch_store.all_batches()
     if not data:
-        return "Hozircha kutilayotgan partiya yo'q."
-    lines = ["📦 Kutilayotgan partiyalar:\n"]
+        return "Ҳозирча кутилаётган партия йўқ."
+    lines = ["📦 Кутилаётган партиялар:\n"]
     now = time.time()
     for code, batch in sorted(data.items()):
         customer = batch.get("customer") or "❓ aniqlanmagan"
@@ -730,7 +778,7 @@ def batches_text() -> str:
         elapsed = format_elapsed(now - batch.get("created_at", now))
         lines.append(
             f"• {batch_display_code(code, batch)} [{code}] -> {customer} "
-            f"({file_count} ta fayl, {elapsed} kutmoqda)"
+            f"({file_count} та файл, {elapsed} кутмоқда)"
         )
     return "\n".join(lines)
 
@@ -743,15 +791,15 @@ async def batches_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def unmatched_text(with_hint: bool = False) -> str:
     data = unmatched_store.all_unmatched()
     if not data:
-        return "Mijozi aniqlanmagan fayllar yo'q."
-    lines = ["❓ Mijozi aniqlanmagan fayllar:\n"]
+        return "Мижози аниқланмаган файллар йўқ."
+    lines = ["❓ Мижози аниқланмаган файллар:\n"]
     now = time.time()
     for entry_id, info in sorted(data.items()):
         age = format_elapsed(now - info.get("created_at", now))
         lines.append(f"• {entry_id}: {info.get('filename', '?')} ({age} oldin)")
     if with_hint:
-        lines.append("\nPartiyaga biriktirish: /batch_attach KOD | ID\nMasalan: /batch_attach NO336 | u1")
-        lines.append("Keraksizini o'chirish: /unmatched_delete ID")
+        lines.append("\nПартияга бириктириш: /batch_attach КОД | ID\nМасалан: /batch_attach NO336 | u1")
+        lines.append("Кераксизини ўчириш: /unmatched_delete ID")
     return "\n".join(lines)
 
 
@@ -770,13 +818,18 @@ async def unmatched_delete_command(update: Update, context: ContextTypes.DEFAULT
         return
     entry_id = payload[1].strip()
     if unmatched_store.remove(entry_id, delete_file=True):
-        await message.reply_text(f"🗑 {entry_id} o'chirildi.")
+        await message.reply_text(f"🗑 {entry_id} ўчирилди.")
     else:
-        await message.reply_text(f"\"{entry_id}\" ID li fayl topilmadi.")
+        await message.reply_text(f"\"{entry_id}\" ID ли файл топилмади.")
 
 
-def _attach_unmatched(entry_id: str, code: str):
-    """Noaniq faylni partiyaga biriktiradi. Qaytaradi: entry yoki None."""
+def _attach_unmatched(entry_id: str, code: str, force_type: str = None):
+    """
+    Noaniq faylni partiyaga biriktiradi. Qaytaradi: entry yoki None.
+
+    `force_type` berilsa (Mini App'da yetishmagan hujjat ustiga bosilganda),
+    fayl nomiga qaramasdan AYNAN shu tur sifatida yoziladi.
+    """
     entry = unmatched_store.get(entry_id)
     if not entry:
         return None
@@ -803,7 +856,9 @@ def _attach_unmatched(entry_id: str, code: str):
         doc_type, truck = doc_types.detect(parsed["remainder"], parsed["extension"])
         if parsed["is_declaration"]:
             doc_type = "DEKL"
-    if doc_type is None:
+    if force_type:
+        doc_type = force_type
+    elif doc_type is None:
         doc_type = "MANUAL"
 
     batch_store.add_file(
@@ -823,7 +878,7 @@ async def batch_attach_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if len(payload) < 2 or "|" not in payload[1]:
         await message.reply_text(
             "Format: /batch_attach KOD | ID\nMasalan: /batch_attach NO336 | u1\n\n"
-            "ID larni /unmatched orqali ko'rasiz."
+            "ID ларни /unmatched орқали кўрасиз."
         )
         return
     code_part, id_part = payload[1].split("|", 1)
@@ -831,15 +886,15 @@ async def batch_attach_command(update: Update, context: ContextTypes.DEFAULT_TYP
     entry_id = id_part.strip()
 
     if not code:
-        await message.reply_text("Partiya kodi bo'sh bo'lmasligi kerak.")
+        await message.reply_text("Партия коди бўш бўлмаслиги керак.")
         return
 
     entry = _attach_unmatched(entry_id, code)
     if not entry:
-        await message.reply_text(f"\"{entry_id}\" ID li fayl topilmadi. /unmatched bilan tekshiring.")
+        await message.reply_text(f"\"{entry_id}\" ID ли файл топилмади. /unmatched билан текширинг.")
         return
 
-    await message.reply_text(f"✅ \"{entry['filename']}\" endi {code} partiyasiga biriktirildi.")
+    await message.reply_text(f"✅ \"{entry['filename']}\" endi {code} партиясига бириктирилди.")
 
 
 @private_only
@@ -853,7 +908,7 @@ async def unmatched_attach_all_command(update: Update, context: ContextTypes.DEF
     message = update.effective_message
     data = unmatched_store.all_unmatched()
     if not data:
-        await message.reply_text("Noaniq fayllar yo'q.")
+        await message.reply_text("Ноаниқ файллар йўқ.")
         return
 
     attached, skipped = {}, []
@@ -871,19 +926,19 @@ async def unmatched_attach_all_command(update: Update, context: ContextTypes.DEF
 
     if not attached:
         await message.reply_text(
-            "Hech qaysi fayl biriktirilmadi (fayl nomlarida kod topilmadi)."
+            "Ҳеч қайси файл бириктирилмади (файл номларида код топилмади)."
         )
         return
 
-    lines = ["✅ Biriktirildi:"]
+    lines = ["✅ Бириктирилди:"]
     for code, count in sorted(attached.items()):
         batch = batch_store.get_batch(code)
-        customer = (batch or {}).get("customer") or "❓ mijoz aniqlanmagan"
-        lines.append(f"   • {code} -> {customer}: {count} ta fayl "
+        customer = (batch or {}).get("customer") or "❓ мижоз аниқланмаган"
+        lines.append(f"   • {code} -> {customer}: {count} та файл "
                      f"[{doc_types.progress_line((batch or {}).get('files', []))}]")
     if skipped:
-        lines.append(f"\n⚠️ Biriktirilmadi: {', '.join(skipped)}")
-    lines.append("\nYuborish uchun deklaratsiyani guruhga qayta tashlang, "
+        lines.append(f"\n⚠️ Бириктирилмади: {', '.join(skipped)}")
+    lines.append("\nЮбориш учун декларацияни гуруҳга қайта ташланг, "
                  "yoki /batch_send KOD.")
     await message.reply_text("\n".join(lines))
 
@@ -895,7 +950,7 @@ async def batch_assign_command(update: Update, context: ContextTypes.DEFAULT_TYP
     payload = (message.text or "").split(maxsplit=1)
     if len(payload) < 2 or "|" not in payload[1]:
         await message.reply_text(
-            "Format: /batch_assign KOD | MIJOZ_NOMI\nMasalan: /batch_assign NO336 | VIZOR STEP-ORC"
+            "Формат: /batch_assign КОД | MIJOZ_NOMI\nМасалан: /batch_assign NO336 | VIZOR STEP-ORC"
         )
         return
     code_part, name_part = payload[1].split("|", 1)
@@ -903,13 +958,13 @@ async def batch_assign_command(update: Update, context: ContextTypes.DEFAULT_TYP
     name = name_part.strip().upper()
 
     if not customer_store.exists(name):
-        await message.reply_text(f"\"{name}\" nomli mijoz topilmadi. Avval /customer_add bilan qo'shing.")
+        await message.reply_text(f"\"{name}\" номли мижоз топилмади. Аввал /customer_add билан қўшинг.")
         return
     if batch_store.set_customer(code, name):
         session_store.remember(code, name)
-        await message.reply_text(f"✅ {code} partiyasi endi {name} ga bog'landi. Yuborish uchun: /batch_send {code}")
+        await message.reply_text(f"✅ {code} партияси энди {name} га боғланди. Юбориш учун: /batch_send {code}")
     else:
-        await message.reply_text(f"\"{code}\" kodli partiya topilmadi. Ro'yxat: /batches")
+        await message.reply_text(f"\"{code}\" кодли партия топилмади. Рўйхат: /batches")
 
 
 @private_only
@@ -935,15 +990,15 @@ async def batch_cancel_command(update: Update, context: ContextTypes.DEFAULT_TYP
     code = re.sub(r"[^A-Za-z0-9А-Яа-я]", "", payload[1]).upper()
     if batch_store.get_batch(code):
         batch_store.clear_batch(code)
-        await message.reply_text(f"🗑 {code} partiyasi bekor qilindi.")
+        await message.reply_text(f"🗑 {code} партияси бекор қилинди.")
     else:
-        await message.reply_text(f"\"{code}\" kodli partiya topilmadi.")
+        await message.reply_text(f"\"{code}\" кодли партия топилмади.")
 
 
 HELP_TEXT = (
-    "📦 Export hujjatlar boti\n\n"
-    "KOMPLEKT (7 ta hujjat): INV, SPETS, ST, FITO, AKT, CMR, TIR\n"
-    "Bot hammasi to'planmaguncha pochtaga YUBORMAYDI.\n\n"
+    "📦 Экспорт ҳужжатлар боти\n\n"
+    "КОМПЛЕКТ (7 та ҳужжат): INV, SPETS, ST, FITO, AKT, CMR, TIR\n"
+    "Бот ҳаммаси тўпланмагунча почтага ЮБОРМАЙДИ.\n\n"
     "NOMLASH TARTIBI (masalan NGS-25, fura 565):\n"
     "  NGS-25 GALLAKTIKA ZAPIT 565.xlsx\n"
     "  NGS25INV.pdf\n"
@@ -951,36 +1006,36 @@ HELP_TEXT = (
     "  NGS-25 ST 565.jpg     NGS-25 FITO 565.jpg\n"
     "  NGS-25 AKT 565.jpg    NGS-25 CMR 565.jpg\n"
     "  NGS-25 TIR 565.jpg\n"
-    "  NGS-25.pdf   ← deklaratsiya, shundan keyin pochtaga ketadi\n\n"
-    "Bot har bir hujjat kelganda qaysilari borligini va nimasi "
-    "yetishmayotganini guruhda yozib boradi. Fayl nomi xato bo'lsa "
-    "(fura raqami boshqa, turi yozilmagan) ogohlantiradi.\n\n"
-    "Boshqaruv uchun /start bosing — tugmali menyu chiqadi.\n\n"
-    "Matn buyruqlar (agar kerak bo'lsa):\n"
-    "/customer_add NOMI | email1, email2\n"
-    "/customer_remove NOMI\n"
+    "  NGS-25.pdf   ← декларация, шундан кейин почтага кетади\n\n"
+    "Бот ҳар бир ҳужжат келганда қайсилари борлигини ва нимаси "
+    "етишмаётганини гуруҳда ёзиб боради. Файл номи хато бўлса "
+    "(фура рақами бошқа, тури ёзилмаган) огоҳлантиради.\n\n"
+    "Бошқарув учун /start босинг — тугмали меню чиқади.\n\n"
+    "Матн буйруқлар (агар керак бўлса):\n"
+    "/customer_add НОМИ | email1, email2\n"
+    "/customer_remove НОМИ\n"
     "/customer_list\n"
-    "/customer_alias NOMI | ALIAS1, ALIAS2\n"
-    "/prefix_add PREFIKS | NOMI\n"
-    "/prefix_remove PREFIKS\n"
+    "/customer_alias НОМИ | ALIAS1, ALIAS2\n"
+    "/prefix_add ПРЕФИКС | НОМИ\n"
+    "/prefix_remove ПРЕФИКС\n"
     "/batches\n"
-    "/batch_assign KOD | NOMI\n"
+    "/batch_assign КОД | НОМИ\n"
     "/batch_send KOD\n"
     "/batch_cancel KOD\n"
     "/unmatched\n"
     "/batch_attach KOD | ID\n"
-    "/unmatched_attach_all — barcha noaniq fayllarni kodi bo'yicha biriktirish\n"
+    "/unmatched_attach_all — барча ноаниқ файлларни коди бўйича бириктириш\n"
     "/unmatched_delete ID\n"
-    "/admins — adminlar ro'yxati\n"
-    "/admin_add ID [ism] — admin qo'shish (faqat bot egasi)\n"
-    "/admin_remove ID — adminni olib tashlash (faqat bot egasi)\n"
-    "/groups — guruhlar ro'yxati\n"
-    "/group_add — SHU guruhni qo'shish (guruhda yoziladi)\n"
-    "/group_remove [ID] — guruhni olib tashlash\n"
-    "/status — bot va sozlamalar holati\n"
-    "/gmail_check — Gmail ruxsati ishlayaptimi, tekshirish\n"
-    "/myid — Telegram ID ingizni ko'rish\n"
-    "/chatid — guruh chat ID sini ko'rish (guruhda yoziladi)"
+    "/admins — админлар рўйхати\n"
+    "/admin_add ID [исм] — админ қўшиш (фақат бот эгаси)\n"
+    "/admin_remove ID — админни олиб ташлаш (фақат бот эгаси)\n"
+    "/groups — гуруҳлар рўйхати\n"
+    "/group_add — ШУ гуруҳни қўшиш (гуруҳда ёзилади)\n"
+    "/group_remove [ID] — гуруҳни олиб ташлаш\n"
+    "/status — бот ва созламалар ҳолати\n"
+    "/gmail_check — Gmail рухсати ишлаяптими, текшириш\n"
+    "/myid — Telegram ID ингизни кўриш\n"
+    "/chatid — гуруҳ чат ID сини кўриш (гуруҳда ёзилади)"
 )
 
 
@@ -1005,11 +1060,11 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
     if action == "resend":
         code = _resolve(token, _pending_resend)
         if not code:
-            await safe_edit(query, "⌛ Bu savolga allaqachon javob berilgan.")
+            await safe_edit(query, "⌛ Бу саволга аллақачон жавоб берилган.")
             return
         if answer == "no":
             count = _discard_resend(code)
-            await safe_edit(query, f"❌ Qayta yuborilmadi ({count} ta fayl e'tiborsiz qoldirildi).\n"
+            await safe_edit(query, f"❌ Қайта юборилмади ({count} та файл эътиборсиз қолдирилди).\n"
                                    f"Javob berdi: {who}")
             return
 
@@ -1018,7 +1073,7 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
         display = batch_display_code(code, batch) if batch else code
         await safe_edit(
             query,
-            f"✅ \"{display}\" qayta yuborishga qabul qilindi ({count} ta fayl).\n"
+            f"✅ \"{display}\" қайта юборишга қабул қилинди ({count} та файл).\n"
             f"Javob berdi: {who}"
         )
         if has_declaration:
@@ -1028,7 +1083,7 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
                 context, chat_id or update.effective_chat.id,
                 f"📥 \"{display}\" [{doc_types.progress_line(batch['files'])}]\n"
                 f"{doc_types.summary(batch['files'])}\n\n"
-                f"Yuborish uchun deklaratsiyani ({display}.pdf) tashlang."
+                f"Юбориш учун декларацияни ({display}.pdf) ташланг."
             )
         return
 
@@ -1036,23 +1091,23 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
     if action == "force":
         code = _resolve(token, batch_store.all_batches())
         if not code:
-            await safe_edit(query, "⌛ Bu partiya endi mavjud emas (yuborilgan yoki bekor qilingan).")
+            await safe_edit(query, "⌛ Бу партия энди мавжуд эмас (юборилган ёки бекор қилинган).")
             return
         batch = batch_store.get_batch(code)
         display = batch_display_code(code, batch)
         if answer == "no":
             await safe_edit(
                 query,
-                f"⏳ \"{display}\" kutilmoqda. Yetishmagan hujjatlarni tashlab, "
-                f"deklaratsiyani qayta yuboring.\nJavob berdi: {who}"
+                f"⏳ \"{display}\" кутилмоқда. Етишмаган ҳужжатларни ташлаб, "
+                f"декларацияни қайта юборинг.\nЖавоб берди: {who}"
             )
             return
 
         missing = doc_types.missing_types(batch["files"])
         await safe_edit(
             query,
-            f"⚠️ \"{display}\" TO'LIQ EMAS holda yuborilmoqda.\n"
-            f"Yetishmayapti: {', '.join(missing) or '—'}\nJavob berdi: {who}"
+            f"⚠️ \"{display}\" ТЎЛИҚ ЭМАС ҳолда юборилмоқда.\n"
+            f"Етишмаяпти: {', '.join(missing) or '—'}\nJavob berdi: {who}"
         )
         await _finalize_and_send(code, context, notify_chat_id=update.effective_chat.id)
         return
@@ -1086,7 +1141,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not is_authorized(update):
-        await safe_edit(query, "⛔ Sizda bu bo'limdan foydalanish huquqi yo'q.")
+        await safe_edit(query, "⛔ Сизда бу бўлимдан фойдаланиш ҳуқуқи йўқ.")
         return
 
     if data == "noop":
@@ -1097,16 +1152,16 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ---- Bosh menyular ----
     if data == "menu:main":
-        await safe_edit(query, "Kerakli bo'limni tanlang 👇", kb_main())
+        await safe_edit(query, "Керакли бўлимни танланг 👇", kb_main())
         return
     if data == "menu:customers":
-        await safe_edit(query, "👥 Mijozlar bo'limi:", kb_customers())
+        await safe_edit(query, "👥 Мижозлар бўлими:", kb_customers())
         return
     if data == "menu:batches":
-        await safe_edit(query, "📦 Partiyalar bo'limi:", kb_batches())
+        await safe_edit(query, "📦 Партиялар бўлими:", kb_batches())
         return
     if data == "menu:unmatched":
-        await safe_edit(query, "❓ Noaniq fayllar bo'limi:", kb_unmatched())
+        await safe_edit(query, "❓ Ноаниқ файллар бўлими:", kb_unmatched())
         return
     if data == "menu:status":
         await safe_edit(query, "🩺 Tekshirilmoqda...")
@@ -1125,54 +1180,54 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["awaiting"] = ("add_customer_name", {})
         await safe_edit(
             query,
-            "➕ Yangi mijoz qo'shish\n\nKompaniya nomini yozib yuboring (masalan: SARBON):",
+            "➕ Янги мижоз қўшиш\n\nКомпания номини ёзиб юборинг (масалан: SARBON):",
             kb_back("menu:customers"),
         )
         return
 
     if data == "cust:remove_pick":
-        await safe_edit(query, "🗑 Qaysi mijozni o'chiramiz?",
+        await safe_edit(query, "🗑 Қайси мижозни ўчирамиз?",
                         kb_pick_customer("cust:remove", "menu:customers"))
         return
     if data.startswith("cust:remove:"):
         name = _resolve(data.split(":", 2)[2], customer_store.load_customers())
         if not name:
-            await safe_edit(query, "Bu mijoz allaqachon o'chirilgan.", kb_customers())
+            await safe_edit(query, "Бу мижоз аллақачон ўчирилган.", kb_customers())
             return
         customer_store.remove_customer(name)
         session_store.forget_customer(name)
-        await safe_edit(query, f"🗑 O'chirildi: {name}", kb_customers())
+        await safe_edit(query, f"🗑 Ўчирилди: {name}", kb_customers())
         return
 
     if data == "cust:alias_pick":
-        await safe_edit(query, "🔤 Qaysi mijozga alias qo'shamiz?",
+        await safe_edit(query, "🔤 Қайси мижозга alias қўшамиз?",
                         kb_pick_customer("cust:alias_for", "menu:customers"))
         return
     if data.startswith("cust:alias_for:"):
         name = _resolve(data.split(":", 2)[2], customer_store.load_customers())
         if not name:
-            await safe_edit(query, "Mijoz topilmadi (ro'yxat yangilangan).", kb_customers())
+            await safe_edit(query, "Мижоз топилмади (рўйхат янгиланган).", kb_customers())
             return
         context.user_data["awaiting"] = ("add_alias", {"name": name})
         await safe_edit(
             query,
-            f"🔤 {name} uchun alias(lar)ni yozing (bir nechtasi bo'lsa vergul bilan ajrating):\n\n"
+            f"🔤 {name} учун alias(лар)ни ёзинг (бир нечтаси бўлса вергул билан ажратинг):\n\n"
             f"Masalan: VIZOR STEPORC, VIZOR",
             kb_back("menu:customers"),
         )
         return
 
     if data == "cust:prefix_pick":
-        await safe_edit(query, "🔗 Qaysi mijozga prefiks bog'laymiz?",
+        await safe_edit(query, "🔗 Қайси мижозга префикс боғлаймиз?",
                         kb_pick_customer("cust:prefix_for", "menu:customers"))
         return
     if data.startswith("cust:prefix_for:"):
         name = _resolve(data.split(":", 2)[2], customer_store.load_customers())
         if not name:
-            await safe_edit(query, "Mijoz topilmadi (ro'yxat yangilangan).", kb_customers())
+            await safe_edit(query, "Мижоз топилмади (рўйхат янгиланган).", kb_customers())
             return
         context.user_data["awaiting"] = ("add_prefix", {"name": name})
-        await safe_edit(query, f"🔗 {name} uchun prefiksni yozing (masalan: NG):",
+        await safe_edit(query, f"🔗 {name} учун префиксни ёзинг (масалан: NG):",
                         kb_back("menu:customers"))
         return
 
@@ -1182,77 +1237,77 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "batch:send_pick":
-        await safe_edit(query, "📤 Qaysi partiyani yuboramiz?",
+        await safe_edit(query, "📤 Қайси партияни юборамиз?",
                         kb_pick_batch("batch:send", "menu:batches"))
         return
     if data.startswith("batch:send:"):
         code = _resolve(data.split(":", 2)[2], batch_store.all_batches())
         if not code:
-            await safe_edit(query, "Bu partiya endi mavjud emas.", kb_batches())
+            await safe_edit(query, "Бу партия энди мавжуд эмас.", kb_batches())
             return
         await safe_edit(query, f"📤 {code} yuborilmoqda...")
         await _finalize_and_send(code, context, notify_chat_id=update.effective_chat.id)
         return
 
     if data == "batch:cancel_pick":
-        await safe_edit(query, "❌ Qaysi partiyani bekor qilamiz?",
+        await safe_edit(query, "❌ Қайси партияни бекор қиламиз?",
                         kb_pick_batch("batch:cancel_ask", "menu:batches"))
         return
     if data.startswith("batch:cancel_ask:"):
         token = data.split(":", 2)[2]
         code = _resolve(token, batch_store.all_batches())
         if not code:
-            await safe_edit(query, "Bu partiya endi mavjud emas.", kb_batches())
+            await safe_edit(query, "Бу партия энди мавжуд эмас.", kb_batches())
             return
         batch = batch_store.get_batch(code)
         await safe_edit(
             query,
-            f"❌ \"{batch_display_code(code, batch)}\" partiyasi bekor qilinsinmi?\n"
-            f"{len(batch.get('files', []))} ta fayl butunlay o'chiriladi va tiklab bo'lmaydi.",
+            f"❌ \"{batch_display_code(code, batch)}\" партияси бекор қилинсинми?\n"
+            f"{len(batch.get('files', []))} та файл бутунлай ўчирилади ва тиклаб бўлмайди.",
             InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Ha, bekor qilinsin", callback_data=f"batch:cancel_do:{token}")],
-                [InlineKeyboardButton("⬅️ Yo'q, orqaga", callback_data="menu:batches")],
+                [InlineKeyboardButton("✅ Ҳа, бекор қилинсин", callback_data=f"batch:cancel_do:{token}")],
+                [InlineKeyboardButton("⬅️ Йўқ, орқага", callback_data="menu:batches")],
             ]),
         )
         return
     if data.startswith("batch:cancel_do:"):
         code = _resolve(data.split(":", 2)[2], batch_store.all_batches())
         if not code:
-            await safe_edit(query, "Bu partiya endi mavjud emas.", kb_batches())
+            await safe_edit(query, "Бу партия энди мавжуд эмас.", kb_batches())
             return
         batch_store.clear_batch(code)
-        await safe_edit(query, f"🗑 {code} partiyasi bekor qilindi.", kb_batches())
+        await safe_edit(query, f"🗑 {code} партияси бекор қилинди.", kb_batches())
         return
 
     if data == "batch:assign_pick":
-        await safe_edit(query, "👤 Qaysi partiyaga mijoz belgilaymiz?",
+        await safe_edit(query, "👤 Қайси партияга мижоз белгилаймиз?",
                         kb_pick_batch("batch:assign_batch", "menu:batches"))
         return
     if data.startswith("batch:assign_batch:"):
         token = data.split(":", 2)[2]
         code = _resolve(token, batch_store.all_batches())
         if not code:
-            await safe_edit(query, "Bu partiya endi mavjud emas.", kb_batches())
+            await safe_edit(query, "Бу партия энди мавжуд эмас.", kb_batches())
             return
         await safe_edit(
             query,
-            f"👤 \"{code}\" uchun qaysi mijozni belgilaymiz?",
+            f"👤 \"{code}\" учун қайси мижозни белгилаймиз?",
             kb_pick_customer(f"batch:assign_customer:{token}", "menu:batches"),
         )
         return
     if data.startswith("batch:assign_customer:"):
         parts = data.split(":")
         if len(parts) < 4:
-            await safe_edit(query, "Tugma ma'lumoti buzilgan, qaytadan urinib ko'ring.", kb_batches())
+            await safe_edit(query, "Тугма маълумоти бузилган, қайтадан уриниб кўринг.", kb_batches())
             return
         code = _resolve(parts[2], batch_store.all_batches())
         name = _resolve(parts[3], customer_store.load_customers())
         if not code or not name:
-            await safe_edit(query, "Partiya yoki mijoz topilmadi (ro'yxat yangilangan).", kb_batches())
+            await safe_edit(query, "Партия ёки мижоз топилмади (рўйхат янгиланган).", kb_batches())
             return
         batch_store.set_customer(code, name)
         session_store.remember(code, name)
-        await safe_edit(query, f"✅ {code} partiyasi endi {name} ga bog'landi.", kb_batches())
+        await safe_edit(query, f"✅ {code} партияси энди {name} га боғланди.", kb_batches())
         return
 
     # ---- Noaniq fayllar ----
@@ -1261,48 +1316,48 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "unmatched:attach_pick":
-        await safe_edit(query, "🔗 Qaysi faylni biriktiramiz?",
+        await safe_edit(query, "🔗 Қайси файлни бириктирамиз?",
                         kb_pick_unmatched("unmatched:attach_file", "menu:unmatched"))
         return
     if data.startswith("unmatched:attach_file:"):
         entry_id = data.split(":", 2)[2]
         if not unmatched_store.get(entry_id):
-            await safe_edit(query, "Bu fayl allaqachon biriktirilgan yoki o'chirilgan.", kb_unmatched())
+            await safe_edit(query, "Бу файл аллақачон бириктирилган ёки ўчирилган.", kb_unmatched())
             return
         await safe_edit(
             query,
-            "🔗 Qaysi partiyaga biriktiramiz?",
+            "🔗 Қайси партияга бириктирамиз?",
             kb_pick_batch(f"unmatched:attach_batch:{entry_id}", "menu:unmatched"),
         )
         return
     if data.startswith("unmatched:attach_batch:"):
         parts = data.split(":")
         if len(parts) < 4:
-            await safe_edit(query, "Tugma ma'lumoti buzilgan, qaytadan urinib ko'ring.", kb_unmatched())
+            await safe_edit(query, "Тугма маълумоти бузилган, қайтадан уриниб кўринг.", kb_unmatched())
             return
         entry_id = parts[2]
         code = _resolve(parts[3], batch_store.all_batches())
         if not code:
-            await safe_edit(query, "Bu partiya endi mavjud emas.", kb_unmatched())
+            await safe_edit(query, "Бу партия энди мавжуд эмас.", kb_unmatched())
             return
         entry = _attach_unmatched(entry_id, code)
         if not entry:
-            await safe_edit(query, "Bu fayl allaqachon biriktirilgan yoki topilmadi.", kb_unmatched())
+            await safe_edit(query, "Бу файл аллақачон бириктирилган ёки топилмади.", kb_unmatched())
             return
-        await safe_edit(query, f"✅ \"{entry['filename']}\" endi {code} partiyasiga biriktirildi.",
+        await safe_edit(query, f"✅ \"{entry['filename']}\" endi {code} партиясига бириктирилди.",
                         kb_unmatched())
         return
 
     if data == "unmatched:delete_pick":
-        await safe_edit(query, "🗑 Qaysi faylni o'chiramiz?",
+        await safe_edit(query, "🗑 Қайси файлни ўчирамиз?",
                         kb_pick_unmatched("unmatched:delete", "menu:unmatched"))
         return
     if data.startswith("unmatched:delete:"):
         entry_id = data.split(":", 2)[2]
         if unmatched_store.remove(entry_id, delete_file=True):
-            await safe_edit(query, f"🗑 {entry_id} o'chirildi.", kb_unmatched())
+            await safe_edit(query, f"🗑 {entry_id} ўчирилди.", kb_unmatched())
         else:
-            await safe_edit(query, "Bu fayl allaqachon o'chirilgan.", kb_unmatched())
+            await safe_edit(query, "Бу файл аллақачон ўчирилган.", kb_unmatched())
         return
 
     logger.warning("Noma'lum tugma: %s", data)
@@ -1327,7 +1382,7 @@ async def text_input_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state == "add_customer_name":
         context.user_data["awaiting"] = ("add_customer_emails", {"name": text})
         await message.reply_text(
-            f"✅ Nomi: {text}\n\nEndi email(lar)ni yozing (bir nechtasi bo'lsa vergul bilan):"
+            f"✅ Номи: {text}\n\nЭнди email(лар)ни ёзинг (бир нечтаси бўлса вергул билан):"
         )
         return
 
@@ -1337,17 +1392,17 @@ async def text_input_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         valid, invalid = _validate_emails(emails)
         if invalid:
             await message.reply_text(
-                "❌ Bu manzillar email ko'rinishida emas: " + ", ".join(invalid) +
-                "\n\nTo'g'rilab qayta yozing (yoki /start bilan bekor qiling)."
+                "❌ Бу манзиллар email кўринишида эмас: " + ", ".join(invalid) +
+                "\n\nТўғрилаб қайта ёзинг (ёки /start билан бекор қилинг)."
             )
             return  # "awaiting" saqlanib qoladi - qayta urinish mumkin
         if not valid:
-            await message.reply_text("Kamida bitta email kiriting.")
+            await message.reply_text("Камида битта email киритинг.")
             return
         customer_store.add_customer(name, valid)
         context.user_data.pop("awaiting", None)
         await message.reply_text(
-            f"✅ Mijoz saqlandi: {name.upper()}\nEmaillar: {', '.join(valid)}",
+            f"✅ Мижоз сақланди: {name.upper()}\nEmaillar: {', '.join(valid)}",
             reply_markup=kb_customers(),
         )
         return
@@ -1357,11 +1412,11 @@ async def text_input_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         aliases = [a.strip() for a in text.split(",") if a.strip()]
         added, skipped = _apply_aliases(name, aliases)
         context.user_data.pop("awaiting", None)
-        reply = f"✅ {name} uchun aliaslar qo'shildi: {', '.join(added)}" if added \
-            else "⚠️ Hech qanday alias qo'shilmadi."
+        reply = f"✅ {name} учун aliaslar қўшилди: {', '.join(added)}" if added \
+            else "⚠️ Ҳеч қандай alias қўшилмади."
         if skipped:
-            reply += (f"\n⚠️ Qabul qilinmadi (kamida "
-                      f"{customer_store.MIN_NAME_MATCH_LEN} ta belgi bo'lishi kerak): "
+            reply += (f"\n⚠️ Қабул қилинмади (камида "
+                      f"{customer_store.MIN_NAME_MATCH_LEN} та белги бўлиши керак): "
                       f"{', '.join(skipped)}")
         await message.reply_text(reply, reply_markup=kb_customers())
         return
@@ -1370,14 +1425,14 @@ async def text_input_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = payload["name"]
         clean = re.sub(r"[^A-Za-zА-Яа-я]", "", text).upper()
         if not clean:
-            await message.reply_text("Prefiks faqat harflardan iborat bo'lishi kerak (masalan: NG).")
+            await message.reply_text("Префикс фақат ҳарфлардан иборат бўлиши керак (масалан: NG).")
             return
         context.user_data.pop("awaiting", None)
         if customer_store.add_prefix(clean, name):
-            await message.reply_text(f"✅ Prefiks bog'landi: {clean}- -> {name}",
+            await message.reply_text(f"✅ Префикс боғланди: {clean}- -> {name}",
                                      reply_markup=kb_customers())
         else:
-            await message.reply_text(f"❌ \"{name}\" mijozi topilmadi.", reply_markup=kb_customers())
+            await message.reply_text(f"❌ \"{name}\" мижози топилмади.", reply_markup=kb_customers())
         return
 
     # Noma'lum holat - tozalab qo'yamiz, foydalanuvchi tiqilib qolmasin
@@ -1389,7 +1444,7 @@ async def text_input_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, notify_chat_id=None):
     batch = batch_store.get_batch(code)
     if not batch or not batch.get("files"):
-        await safe_send(context, notify_chat_id, f"\"{code}\" kodli partiya topilmadi yoki bo'sh.")
+        await safe_send(context, notify_chat_id, f"\"{code}\" кодли партия топилмади ёки бўш.")
         return
 
     if code in _sending_now:
@@ -1401,8 +1456,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     customer_name = batch.get("customer")
     if not customer_name:
         msg = (
-            f"⚠️ {display_code} partiyasi uchun mijoz aniqlanmadi ({len(batch['files'])} ta fayl kutmoqda).\n"
-            f"Belgilash uchun: /batch_assign {code} | MIJOZ_NOMI"
+            f"⚠️ {display_code} партияси учун мижоз аниқланмади ({len(batch['files'])} та файл кутмоқда).\n"
+            f"Белгилаш учун: /batch_assign {code} | MIJOZ_NOMI"
         )
         if notify_chat_id:
             await safe_send(context, notify_chat_id, msg)
@@ -1412,8 +1467,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
 
     emails = customer_store.get_emails(customer_name)
     if not emails:
-        msg = (f"⚠️ {customer_name} mijozining emaili topilmadi. "
-               f"{display_code} yuborilmadi — /customer_add bilan email qo'shing.")
+        msg = (f"⚠️ {customer_name} мижозининг emaili топилмади. "
+               f"{display_code} юборилмади — /customer_add билан email қўшинг.")
         await safe_send(context, notify_chat_id, msg)
         if notify_chat_id != config.ADMIN_USER_ID:
             await notify_admin(context, msg)
@@ -1425,9 +1480,9 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     # tahrirlangan bo'lsa, mijozga oxirgi versiyasi ketsin.
     ok_dl, dl_errors = await _download_batch_files(context, code)
     if not ok_dl:
-        msg = (f"❌ {display_code} yuborilmadi — bu fayllarni Telegram'dan "
-               f"yuklab bo'lmadi:\n" + "\n".join(f"   • {e}" for e in dl_errors) +
-               f"\n\nFayllarni qayta tashlang yoki /batch_cancel {code}.")
+        msg = (f"❌ {display_code} юборилмади — бу файлларни Telegram'dan "
+               f"юклаб бўлмади:\n" + "\n".join(f"   • {e}" for e in dl_errors) +
+               f"\n\nФайлларни қайта ташланг ёки /batch_cancel {code}.")
         await safe_send(context, notify_chat_id, msg)
         if notify_chat_id != config.ADMIN_USER_ID:
             await notify_admin(context, msg)
@@ -1439,7 +1494,7 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     # (xlsx, INV, SPETS), keyin skanerlar (ST, FITO, AKT, CMR, TIR),
     # oxirida deklaratsiya - mijoz uchun o'qish qulay bo'lsin.
     #
-    # IKKINCHI HIMOYA: turi tanilmagan fayl (chek, pasport nusxasi va h.k.)
+    # IKKINCHI HIMOYA: turi tanilmagan fayl (chek, pasport nusxasi ва ҳ.к.)
     # mijozga ketib qolmasin. Bunday fayllar odatda qabul qilinmaydi, lekin
     # eski partiyalarda yoki qo'lda biriktirishda uchrab qolishi mumkin.
     all_sorted = batch_store.sorted_files(batch)
@@ -1447,8 +1502,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     skipped = [f for f in all_sorted if not doc_types.is_attachable(f.get("doc_type"))]
 
     if not ordered:
-        msg = (f"❌ \"{batch_display_code(code, batch)}\" yuborilmadi: biriktiriladigan "
-               f"hujjat yo'q (barcha fayllarning turi tanilmadi).")
+        msg = (f"❌ \"{batch_display_code(code, batch)}\" юборилмади: бириктириладиган "
+               f"ҳужжат йўқ (барча файлларнинг тури танилмади).")
         await safe_send(context, notify_chat_id, msg)
         if notify_chat_id != config.ADMIN_USER_ID:
             await notify_admin(context, msg)
@@ -1467,8 +1522,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         logger.info("%s: deklaratsiyadan mavzu o'qilmadi (%s)", code, decl_info)
         await notify_admin(
             context,
-            f"ℹ️ \"{display_code}\" — deklaratsiyadan avto raqam / yetkazish sharti "
-            f"o'qilmadi, oddiy mavzu ishlatildi.\nXat baribir yuborildi."
+            f"ℹ️ \"{display_code}\" — декларациядан авто рақам / етказиш шарти "
+            f"ўқилмади, оддий мавзу ишлатилди.\nХат барибир юборилди."
         )
 
     _sending_now.add(code)
@@ -1484,7 +1539,7 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         )
     except Exception as e:
         logger.exception("%s yuborishda kutilmagan xatolik", code)
-        msg = f"❌ {display_code} yuborilmadi. Xatolik: {e}"
+        msg = f"❌ {display_code} юборилмади. Хатолик: {e}"
         await safe_send(context, notify_chat_id, msg)
         if notify_chat_id != config.ADMIN_USER_ID:
             await notify_admin(context, msg)
@@ -1503,32 +1558,32 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     # Guruhga - email manzillarini oshkor qilmasdan, faqat holat
     if ok:
         group_summary = (
-            f"✅ \"{display_code}\" — pochtaga yuborildi\n"
-            f"📦 {truck_part}{len(file_names)} ta fayl · komplekt {doc_types.progress_line(ordered)}\n\n"
+            f"✅ \"{display_code}\" — почтага юборилди\n"
+            f"📦 {truck_part}{len(file_names)} та файл · комплект {doc_types.progress_line(ordered)}\n\n"
             f"{file_list}"
         )
         if failed:
-            group_summary += f"\n\n⚠️ {len(failed)} ta manzilga yuborilmadi, admin xabardor qilindi."
+            group_summary += f"\n\n⚠️ {len(failed)} та манзилга юборилмади, админ хабардор қилинди."
     else:
-        group_summary = (f"❌ \"{display_code}\" pochtaga YUBORILMADI.\n"
-                         f"Fayllar saqlanib turibdi, admin xabardor qilindi.")
+        group_summary = (f"❌ \"{display_code}\" почтага ЮБОРИЛМАДИ.\n"
+                         f"Файллар сақланиб турибди, админ хабардор қилинди.")
 
     # Admin'ga shaxsiy - to'liq tafsilot, email manzillari va xatolik sababi bilan
     admin_summary = (
         f"{'✅' if ok else '❌'} \"{display_code}\" -> {customer_name}\n"
-        f"📦 {truck_part}{len(file_names)} ta fayl · komplekt {doc_types.progress_line(ordered)}"
-        + (f" ⚠️ yetishmadi: {', '.join(missing_docs)}" if missing_docs else " ✅ to'liq") + "\n"
-        f"📧 Yuborildi: {', '.join(ok) if ok else '—'}\n\n"
+        f"📦 {truck_part}{len(file_names)} та файл · комплект {doc_types.progress_line(ordered)}"
+        + (f" ⚠️ етишмади: {', '.join(missing_docs)}" if missing_docs else " ✅ тўлиқ") + "\n"
+        f"📧 Юборилди: {', '.join(ok) if ok else '—'}\n\n"
         f"{file_list}"
     )
     if skipped:
-        admin_summary += ("\n🚫 Xatga qo'shilmadi (turi tanilmadi): " +
+        admin_summary += ("\n🚫 Хатга қўшилмади (тури танилмади): " +
                           ", ".join(f["filename"] for f in skipped))
     if failed:
-        admin_summary += "\n❌ Yuborilmadi:\n" + "\n".join(f"  • {e}: {err}" for e, err in failed.items())
+        admin_summary += "\n❌ Юборилмади:\n" + "\n".join(f"  • {e}: {err}" for e, err in failed.items())
     if not ok:
-        admin_summary += (f"\n\n⚠️ Partiya O'CHIRILMADI — muammoni hal qilib, "
-                          f"/batch_send {code} bilan qayta urinib ko'ring.")
+        admin_summary += (f"\n\n⚠️ Партия ЎЧИРИЛМАДИ — муаммони ҳал қилиб, "
+                          f"/batch_send {code} билан қайта уриниб кўринг.")
 
     if notify_chat_id == config.ADMIN_USER_ID:
         # Admin o'zi shaxsiy chatdan yuborgan bo'lsa, unga to'liq (email bilan) ko'rsatiladi
@@ -1546,12 +1601,12 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         sent_store.record(code, display_code, customer_name, ok, ordered)
         history_store.add(
             "batch_sent",
-            f"{display_code} → {customer_name} · {len(file_names)} fayl"
+            f"{display_code} → {customer_name} · {len(file_names)} файл"
             + (f" · fura {truck_full}" if truck_full else ""),
         )
         batch_store.clear_batch(code)
     else:
-        history_store.add("batch_failed", f"{display_code} → {customer_name}: yuborilmadi")
+        history_store.add("batch_failed", f"{display_code} → {customer_name}: юборилмади")
     logger.info("%s -> %s: yuborildi=%s, xato=%s", code, customer_name, ok, failed)
 
 
@@ -1623,7 +1678,11 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     code, old = batch_store.find_by_message(message.message_id)
     if not code:
-        return  # bu xabar biror partiyaga tegishli emas
+        # Бу хабар ҳали бирор партияда йўқ. Демак файл аввал нотўғри
+        # номланган (ёки тури танилмаган) бўлиб, эътиборсиз қолдирилган.
+        # Энди номи тузатилган бўлиши мумкин — оддий йўл билан қайта кўрамиз.
+        await _process_incoming_file(update, context, name, fid, fuid)
+        return
 
     parsed = session_store.parse(name)
     doc_type, truck = (None, None)
@@ -1637,13 +1696,15 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     old_name = old.get("filename", "?")
     logger.info("Tahrirlangan hujjat yangilandi: %s -> %s (%s)", old_name, name, code)
-    history_store.add("doc_edited", f"{code}: {old_name} yangilandi")
+    history_store.add("doc_edited", f"{code}: {old_name} янгиланди")
 
     batch = batch_store.get_batch(code)
-    text = f"✏️ Hujjat yangilandi: {old_name}"
-    if safe_filename(name) != old_name:
-        text += f" → {name}"
-    text += f"\nMijozga oxirgi versiya ketadi. [{doc_types.progress_line(batch['files'])}]"
+    new_name = safe_filename(name)
+    text = f"✏️ Таҳрирланган ҳужжат олинди: {old_name}"
+    if new_name != old_name:
+        text += f" → {new_name}"
+    text += (f"\nМижозга айнан шу — охирги версия кетади. "
+             f"[{doc_types.progress_line(batch['files'])}]")
     await safe_send(context, update.effective_chat.id, text)
 
 
@@ -1689,7 +1750,7 @@ async def _download(bot, file_id: str, local_dir: str, filename: str) -> str:
 ACK_DELAY_SECONDS = 5
 
 
-# Turi tanilmagan fayllar (chek, pasport nusxasi, haydovchi rasmi va h.k.)
+# Turi tanilmagan fayllar (chek, pasport nusxasi, haydovchi rasmi ва ҳ.к.)
 # JIMGINA e'tiborsiz qoldiriladi - guruhga hech narsa yozilmaydi.
 # Ilgari har bir bunday fayl uchun ogohlantirish chiqarilardi va bu guruhni
 # keraksiz xabarlarga to'ldirib yuborardi. Bot faqat kalit hujjat turlarini
@@ -1709,17 +1770,17 @@ def _naming_warnings(existing_batch, parsed, doc_type, truck, filename) -> list:
 
     if expected_truck and truck and truck != expected_truck:
         warnings.append(
-            f"⚠️ \"{filename}\" — fura raqami invoysdagidan FARQ QILADI.\n"
-            f"Invoysda: {expected_truck}, bu faylda: {truck}.\n"
-            f"Nomini tekshiring — hujjat noto'g'ri partiyaga tushmasin."
+            f"⚠️ \"{filename}\" — фура рақами инвойсдагидан ФАРҚ ҚИЛАДИ.\n"
+            f"Invoysda: {expected_truck}, бу файлда: {truck}.\n"
+            f"Номини текширинг — ҳужжат нотўғри партияга тушмасин."
         )
     elif expected_truck and not truck and doc_type in doc_types.SCAN_TYPES:
         # Faqat SKANER hujjatlari uchun ogohlantiramiz. INV/SPETS/xlsx odatda
         # fura raqamisiz nomlanadi ("NGS25INV.pdf") - bu xato emas.
         warnings.append(
-            f"⚠️ \"{filename}\" — fura raqami yozilmagan (invoysda: {expected_truck}).\n"
-            f"To'g'ri ko'rinish: {display} {doc_type} {expected_truck}.{ext}\n"
-            f"Fayl qabul qilindi, keyingi safar to'liq yozing."
+            f"⚠️ \"{filename}\" — фура рақами ёзилмаган (инвойсда: {expected_truck}).\n"
+            f"Тўғри кўриниш: {display} {doc_type} {expected_truck}.{ext}\n"
+            f"Файл қабул қилинди, кейинги сафар тўлиқ ёзинг."
         )
 
     # Bir turdagi hujjat bir nechta bo'lishi NORMAL holat:
@@ -1736,7 +1797,7 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
 
     parsed = session_store.parse(filename)
     if not parsed:
-        # Kod umuman topilmadi (oddiy suhbat, skrinshot, pasport nusxasi va h.k.)
+        # Kod umuman topilmadi (oddiy suhbat, skrinshot, pasport nusxasi ва ҳ.к.)
         # - bunga botning aloqasi yo'q, butunlay e'tiborsiz qoldiramiz.
         return
 
@@ -1799,10 +1860,12 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     # yakuniy deklaratsiya kelganda, bir yo'la yuklab olinadi.
     warnings = _naming_warnings(batch_store.get_batch(code), parsed, doc_type, truck, filename)
 
+    sender = update.effective_user
     batch_store.add_file(code, safe_filename(filename),
                          file_unique_id=file_unique_id, customer=customer_name,
                          display=display, doc_type=doc_type, truck=truck,
-                         file_id=file_id, message_id=update.effective_message.message_id)
+                         file_id=file_id, message_id=update.effective_message.message_id,
+                         user_id=getattr(sender, "id", None), user_name=_user_name(sender))
 
     for warning in warnings:
         await safe_send(context, chat_id, warning)
@@ -1830,25 +1893,34 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
     missing = doc_types.missing_types(batch["files"])
 
     if missing:
+        # Ҳужжатларни ташлаган одам(лар)ни белгилаймиз — шунда у бевосита
+        # билдиришнома олади ва нима йетишмаётганини кўради.
+        who = _batch_mentions(batch, update.effective_user)
+        head = f"{who}, " if who else ""
+        esc_display = html.escape(display)
+
         await safe_send(
             context, chat_id,
-            f"🛑 \"{display}\" — YUBORILMADI, komplekt to'liq emas "
+            f"🛑 {head}<b>{esc_display}</b> — "
+            f"{', '.join(html.escape(t) for t in missing)} ҳужжат"
+            f"{'и' if len(missing) == 1 else 'лари'} йетишмаяпти "
             f"[{doc_types.progress_line(batch['files'])}]\n\n"
-            f"❌ Yetishmayapti:\n" +
-            "\n".join(f"   • {doc_types.title(t)}" for t in missing) +
-            f"\n\nYetishmagan hujjatlarni tashlang, so'ng deklaratsiyani "
-            f"({display}.pdf) qayta yuboring.\n"
-            f"Yoki quyidagi tugma bilan shu holatda yuborishingiz mumkin.",
+            f"❌ Йетишмаётганлар:\n" +
+            "\n".join(f"   • {html.escape(doc_types.title(t))}" for t in missing) +
+            f"\n\nЙетишмаган ҳужжатларни ташланг, сўнг декларацияни "
+            f"({esc_display}.pdf) қайта юборинг.\n"
+            f"Ёки қуйидаги тугма билан шу ҳолатда юборишингиз мумкин.",
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚠️ Baribir yuborilsin", callback_data=f"force:yes:{_tok(code)}"),
-                InlineKeyboardButton("⏳ Kutamiz", callback_data=f"force:no:{_tok(code)}"),
+                InlineKeyboardButton("⚠️ Барибир юборилсин", callback_data=f"force:yes:{_tok(code)}"),
+                InlineKeyboardButton("⏳ Кутамиз", callback_data=f"force:no:{_tok(code)}"),
             ]]),
+            parse_mode="HTML",
         )
         await notify_admin(
             context,
-            f"🛑 \"{display}\" komplekti to'liq emas, yuborilmadi.\n"
-            f"Yetishmayapti: {', '.join(missing)}\n"
-            f"Majburan yuborish: /batch_send {code}"
+            f"🛑 \"{display}\" комплекти тўлиқ эмас, юборилмади.\n"
+            f"Йетишмаяпти: {', '.join(missing)}\n"
+            f"Мажбуран юбориш: /batch_send {code}"
         )
         return
 
@@ -1885,7 +1957,7 @@ async def _download_batch_files(context: ContextTypes.DEFAULT_TYPE, code: str):
 
         file_id = f.get("file_id")
         if not file_id:
-            errors.append(f"{f.get('filename', '?')}: file_id yo'q (eski yozuv)")
+            errors.append(f"{f.get('filename', '?')}: file_id йўқ (эски ёзув)")
             continue
 
         try:
@@ -1975,13 +2047,13 @@ async def _send_resend_question(context: ContextTypes.DEFAULT_TYPE, code: str):
 
     await safe_send(
         context, entry["chat_id"],
-        f"♻️ \"{entry['display']}\" — bu hujjat(lar) ALLAQACHON pochtaga yuborilgan "
+        f"♻️ \"{entry['display']}\" — бу ҳужжат(лар) АЛЛАҚАЧОН почтага юборилган "
         f"({when}).\n\n"
-        f"Qayta tashlangan fayllar ({len(entry['files'])}):\n{names}{more}\n\n"
-        f"Yana qayta yuborilsinmi?",
+        f"Қайта ташланган файллар ({len(entry['files'])}):\n{names}{more}\n\n"
+        f"Яна қайта юборилсинми?",
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ HA, qayta yuborilsin", callback_data=f"resend:yes:{_tok(code)}"),
-            InlineKeyboardButton("❌ YO'Q", callback_data=f"resend:no:{_tok(code)}"),
+            InlineKeyboardButton("✅ ҲА, қайта юборилсин", callback_data=f"resend:yes:{_tok(code)}"),
+            InlineKeyboardButton("❌ ЙЎҚ", callback_data=f"resend:no:{_tok(code)}"),
         ]]),
     )
 
@@ -2058,10 +2130,10 @@ async def _store_unmatched(update: Update, context: ContextTypes.DEFAULT_TYPE,
     logger.info("Mijozi aniqlanmagan fayl saqlandi: %s (%s) -> %s", filename, code, entry_id)
     await notify_admin(
         context,
-        f"❓ Mijozi aniqlanmagan fayl saqlandi.\n"
-        f"Fayl: {filename}\nKod: {code}\nID: {entry_id}\n\n"
-        f"Biriktirish: /batch_attach {code} | {entry_id}\n"
-        f"O'chirish: /unmatched_delete {entry_id}",
+        f"❓ Мижози аниқланмаган файл сақланди.\n"
+        f"Файл: {filename}\nKod: {code}\nID: {entry_id}\n\n"
+        f"Бириктириш: /batch_attach {code} | {entry_id}\n"
+        f"Ўчириш: /unmatched_delete {entry_id}",
     )
 
 
@@ -2090,11 +2162,11 @@ async def check_stale_batches(context: ContextTypes.DEFAULT_TYPE):
 
             await notify_admin(
                 context,
-                f"⏰ Eslatma: \"{batch_display_code(code, batch)}\" partiyasi {elapsed} dan beri "
-                f"deklaratsiyasiz kutmoqda.\n"
-                f"Mijoz: {customer}, {file_count} ta fayl.\n"
-                f"Qo'lda yuborish: /batch_send {code}\n"
-                f"Bekor qilish: /batch_cancel {code}"
+                f"⏰ Eslatma: \"{batch_display_code(code, batch)}\" партияси {elapsed} dan beri "
+                f"декларациясиз кутмоқда.\n"
+                f"Мижоз: {customer}, {file_count} та файл.\n"
+                f"Қўлда юбориш: /batch_send {code}\n"
+                f"Бекор қилиш: /batch_cancel {code}"
             )
             batch_store.mark_reminded(code)
         except Exception:
@@ -2119,7 +2191,7 @@ async def check_gmail_health(context: ContextTypes.DEFAULT_TYPE, force_report: b
 
     if ok:
         if was_ok is False:
-            await notify_admin(context, f"✅ Gmail ruxsati tiklandi — {msg}")
+            await notify_admin(context, f"✅ Gmail рухсати тикланди — {msg}")
         elif force_report:
             await notify_admin(context, f"✅ Gmail: {msg}")
         _gmail_state["ok"] = True
@@ -2131,11 +2203,11 @@ async def check_gmail_health(context: ContextTypes.DEFAULT_TYPE, force_report: b
         pending = batch_store.all_batches()
         extra = ""
         if pending:
-            extra = (f"\n\n⏳ Hozir {len(pending)} ta partiya kutmoqda — muammo "
-                     f"hal bo'lgach ular yuboriladi.")
+            extra = (f"\n\n⏳ Ҳозир {len(pending)} та партия кутмоқда — муаммо "
+                     f"ҳал бўлгач улар юборилади.")
         await notify_admin(
             context,
-            f"❌ GMAIL RUXSATI ISHLAMAYAPTI — bot hozir xat yubora olmaydi.\n\n{msg}{extra}"
+            f"❌ GMAIL РУХСАТИ ИШЛАМАЯПТИ — бот ҳозир хат юбора олмайди.\n\n{msg}{extra}"
         )
         _gmail_state["last_alert"] = now
 
@@ -2211,11 +2283,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
             return
         await notify_admin(
             context,
-            f"📡 Internet aloqasi beqaror — so'nggi 5 daqiqada "
+            f"📡 Интернет алоқаси беқарор — сўнгги 5 дақиқада "
             f"{_network_errors['count']} marta uzildi.\n\n"
-            f"Bot o'zi qayta ulanmoqda, hujjatlar yo'qolmaydi. Lekin uzoq "
-            f"davom etsa, internetni tekshiring.\n\n"
-            f"Oxirgi xatolik: {str(context.error)[:200]}"
+            f"Бот ўзи қайта уланмоқда, ҳужжатлар йўқолмайди. Лекин узоқ "
+            f"давом этса, интернетни текширинг.\n\n"
+            f"Охирги хатолик: {str(context.error)[:200]}"
         )
         return
 
@@ -2224,7 +2296,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     if not config.ADMIN_USER_ID:
         return
     tb = "".join(traceback.format_exception(None, context.error, context.error.__traceback__))
-    text = f"⚠️ Botda xatolik yuz berdi:\n{str(context.error)[:400]}\n\n...{tb[-800:]}"
+    text = f"⚠️ Ботда хатолик юз берди:\n{str(context.error)[:400]}\n\n...{tb[-800:]}"
     try:
         await context.bot.send_message(config.ADMIN_USER_ID, text)
     except TelegramError:
@@ -2240,19 +2312,19 @@ async def _post_init(app: Application):
     if not config.ADMIN_USER_ID:
         return
 
-    note = "♻️ Bot qayta ishga tushdi."
+    note = "♻️ Бот қайта ишга тушди."
     if problems:
-        note += "\n\n⚠️ Sozlamalarda muammo:\n" + "\n".join(f"• {p}" for p in problems)
+        note += "\n\n⚠️ Созламаларда муаммо:\n" + "\n".join(f"• {p}" for p in problems)
 
     # Baza bo'sh bo'lsa (masalan yangi serverda) - hujjatlar hech kimga
     # yuborilmaydi, hammasi "noaniq fayllar" ga tushib ketaveradi.
     # Buni oldindan aytamiz.
     if not customer_store.load_customers():
         note += (
-            "\n\n❗ MIJOZLAR RO'YXATI BO'SH.\n"
-            "Bot hujjatlarni hech kimga yubora olmaydi — hammasi \"noaniq "
-            "fayllar\" ga tushadi.\n\n"
-            "Mijozlarni qo'shing, masalan:\n"
+            "\n\n❗ МИЖОЗЛАР РЎЙХАТИ БЎШ.\n"
+            "Бот ҳужжатларни ҳеч кимга юбора олмайди — ҳаммаси \"ноаниқ "
+            "файллар\" га тушади.\n\n"
+            "Мижозларни қўшинг, масалан:\n"
             "/customer_add GALLAKTIKA | pochta@example.com\n"
             "/prefix_add NGS | GALLAKTIKA"
         )
@@ -2287,10 +2359,10 @@ def main():
     problems = config.validate()
     if not config.BOT_TOKEN or ":" not in config.BOT_TOKEN:
         raise SystemExit(
-            "XATOLIK: BOT_TOKEN belgilanmagan yoki noto'g'ri.\n"
-            "  • Kompyuterda ishlatsangiz  -> .env faylini tekshiring\n"
-            "  • Serverda (Railway) bo'lsa -> Variables bo'limini tekshiring\n"
-            "Token @BotFather bergan, ichida ':' bo'lgan qator bo'lishi kerak."
+            "ХАТОЛИК: BOT_TOKEN белгиланмаган ёки нотўғри.\n"
+            "  • Компьютерда ишлатсангиз  -> .env файлини текширинг\n"
+            "  • Серверда (Railway) бўлса -> Variables бўлимини текширинг\n"
+            "Token @BotFather берган, ичида ':' бўлган қатор бўлиши керак."
         )
     for p in problems:
         logger.warning("SOZLAMA: %s", p)
@@ -2383,7 +2455,7 @@ def main():
         )
     else:
         logger.warning(
-            "JobQueue mavjud emas - eskirgan partiyalar haqida avtomatik eslatma ishlamaydi. "
+            "Жобқуеуе мавжуд эмас - эскирган партиялар ҳақида автоматик эслатма ишламайди. "
             "'pip install \"python-telegram-bot[job-queue]\"' bilan o'rnating."
         )
 

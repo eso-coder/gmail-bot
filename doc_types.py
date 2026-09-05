@@ -48,15 +48,15 @@ def is_attachable(doc_type) -> bool:
     return doc_type in ATTACHABLE
 
 TITLES = {
-    "INV": "INV (invoys)",
-    "SPETS": "SPETS (spetsifikatsiya)",
-    "ST": "ST (sertifikat)",
+    "INV": "INV (инвойс)",
+    "SPETS": "SPETS (спецификация)",
+    "ST": "ST (сертификат)",
     "FITO": "FITO",
     "AKT": "AKT",
     "CMR": "CMR",
     "TIR": "TIR",
-    "XLS": "XLS (invoys jadvali)",
-    "DEKL": "Deklaratsiya",
+    "XLS": "XLS (инвойс жадвали)",
+    "DEKL": "Декларация",
 }
 
 # Fayl nomidagi TO'LIQ so'z (token) shu ro'yxatga mos kelsagina hisobga olinadi.
@@ -121,15 +121,15 @@ def detect(remainder: str, extension: str = ""):
 
 
 def title(doc_type: str) -> str:
-    return TITLES.get(doc_type, doc_type or "noma'lum")
+    return TITLES.get(doc_type, doc_type or "номаълум")
 
 
 # Xabarda fayllar shu guruhlar bo'yicha ko'rsatiladi
 FILE_GROUPS = [
-    ("📋 Invoys guruhi", ["XLS", "INV", "SPETS"], True),
-    ("🖼 Skaner hujjatlar", ["ST", "FITO", "AKT", "CMR", "TIR"], True),
-    ("📎 Qo'lda qo'shilgan", ["MANUAL"], False),
-    ("📕 Deklaratsiya", ["DEKL"], False),
+    ("📋 Инвойс гуруҳи", ["XLS", "INV", "SPETS"], True),
+    ("🖼 Сканер ҳужжатлар", ["ST", "FITO", "AKT", "CMR", "TIR"], True),
+    ("📎 Қўлда қўшилган", ["MANUAL"], False),
+    ("📕 Декларация", ["DEKL"], False),
 ]
 
 
@@ -208,7 +208,7 @@ def format_files(files: list) -> str:
 
     other = [f for f in files if id(f) not in shown]
     if other:
-        lines.append("📄 Boshqa")
+        lines.append("📄 Бошқа")
         for f in other:
             lines.append(f"   • {f.get('filename', '?')}")
 
@@ -244,11 +244,11 @@ def summary(files: list) -> str:
 
     lines = []
     if have:
-        lines.append("✅ Bor: " + ", ".join(t.split(" ")[0] for t in have))
+        lines.append("✅ Бор: " + ", ".join(t.split(" ")[0] for t in have))
     if "XLS" in present:
-        lines.append("📊 Invoys jadvali (xlsx) bor")
+        lines.append("📊 Инвойс жадвали (xlsx) бор")
     if missing:
-        lines.append("⏳ Yetishmayapti: " + ", ".join(missing))
+        lines.append("⏳ Етишмаяпти: " + ", ".join(missing))
     else:
-        lines.append("🎉 Komplekt to'liq")
+        lines.append("🎉 Комплект тўлиқ")
     return "\n".join(lines)

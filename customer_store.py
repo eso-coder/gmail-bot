@@ -144,6 +144,56 @@ def add_alias(alias: str, name: str) -> bool:
     return True
 
 
+def remove_alias(alias: str, name: str = "") -> bool:
+    """Aliasni olib tashlaydi. `name` berilmasa, barcha mijozlardan izlaydi."""
+    data = load_customers()
+    alias = alias.strip().lower()
+    if not alias:
+        return False
+
+    targets = [name.strip().upper()] if name.strip() else list(data)
+    for key in targets:
+        info = data.get(key)
+        if not info:
+            continue
+        kept = [a for a in info.get("aliases", []) if a.strip().lower() != alias]
+        if len(kept) != len(info.get("aliases", [])):
+            info["aliases"] = kept
+            save_customers(data)
+            return True
+    return False
+
+
+def set_emails(name: str, emails: list) -> bool:
+    """Mijozning email ro'yxatini butunlay almashtiradi."""
+    data = load_customers()
+    name = name.strip().upper()
+    if name not in data:
+        return False
+    data[name]["emails"] = _clean_emails(emails)
+    save_customers(data)
+    return True
+
+
+def rename_customer(old: str, new: str) -> bool:
+    """
+    Mijoz nomini o'zgartiradi; prefiks va aliaslar saqlanib qoladi.
+    Yangi nom allaqachon band bo'lsa yoki eski nom topilmasa - False.
+    """
+    data = load_customers()
+    old = old.strip().upper()
+    new = new.strip().upper()
+    if not new or old not in data:
+        return False
+    if new != old and new in data:
+        return False
+
+    # Tartibni saqlab qolish uchun lug'atni qayta yig'amiz
+    data = {(new if k == old else k): v for k, v in data.items()}
+    save_customers(data)
+    return True
+
+
 def add_prefix(prefix: str, name: str) -> bool:
     """Prefiksni mijozga bog'laydi. Agar mijoz mavjud bo'lmasa False qaytaradi."""
     data = load_customers()

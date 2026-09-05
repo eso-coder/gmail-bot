@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Export hujjatlar boti</title>
+<title>Экспорт ҳужжатлар боти</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{
@@ -27,7 +27,7 @@ body{
   padding-bottom:96px;
 }
 
-/* ---------- Sarlavha ---------- */
+/* ---------- Сарлавҳа ---------- */
 .top{position:sticky; top:0; z-index:20; background:var(--bg);
      padding:10px 14px 8px; border-bottom:1px solid var(--line)}
 .seg{display:flex; gap:2px; background:var(--soft); padding:3px; border-radius:12px}
@@ -41,7 +41,7 @@ body{
 .seg button.on{background:var(--bg); color:var(--fg); box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .seg .n{font-size:10px; opacity:.75}
 
-/* ---------- Kartalar ---------- */
+/* ---------- Карталар ---------- */
 main{padding:14px}
 .card{background:var(--card); border-radius:var(--r); padding:14px; margin-bottom:12px}
 .card.sel{outline:2px solid var(--accent); outline-offset:-2px}
@@ -49,7 +49,7 @@ main{padding:14px}
 .name{font-weight:650; font-size:16px; letter-spacing:-.2px}
 .meta{color:var(--hint); font-size:12.5px; margin-top:3px}
 
-/* progress */
+/* прогресс */
 .pill{font:600 12px/1 inherit; padding:5px 10px; border-radius:20px; white-space:nowrap}
 .pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent); color:var(--ok)}
 .pill.mid{background:color-mix(in srgb,var(--warn) 18%,transparent); color:var(--warn)}
@@ -58,11 +58,17 @@ main{padding:14px}
 .bar i{flex:1; height:5px; border-radius:3px; background:var(--soft)}
 .bar i.f{background:var(--ok)}
 .tags{display:flex; flex-wrap:wrap; gap:5px}
-.tag{font:500 11px/1 inherit; padding:4px 8px; border-radius:7px; background:var(--soft); color:var(--hint)}
+.tag{font:500 11px/1 inherit; padding:4px 8px; border-radius:7px; background:var(--soft);
+     color:var(--hint); display:inline-flex; align-items:center; gap:5px}
 .tag.has{background:color-mix(in srgb,var(--ok) 15%,transparent); color:var(--ok)}
-.tag.no{background:color-mix(in srgb,var(--danger) 12%,transparent); color:var(--danger)}
+.tag.no{background:color-mix(in srgb,var(--danger) 12%,transparent); color:var(--danger);
+        cursor:pointer; border:1px dashed color-mix(in srgb,var(--danger) 45%,transparent)}
+.tag.no:active{opacity:.6}
+.tag .x{cursor:pointer; opacity:.6; font-weight:700; padding:0 1px}
+.tag .x:active{opacity:1}
+.hintline{color:var(--hint); font-size:11.5px; margin-top:7px}
 
-/* boshqaruv */
+/* бошқарув */
 .acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
 .btn{
   border:0; border-radius:11px; padding:10px 15px; cursor:pointer;
@@ -87,22 +93,22 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
 .flist div{padding:3px 0; border-bottom:1px solid var(--line)}
 .flist div:last-child{border:0}
 
-/* bo'sh holat */
+/* бўш ҳолат */
 .empty{text-align:center; padding:56px 20px; color:var(--hint)}
 .empty .em{font-size:44px; display:block; margin-bottom:12px; opacity:.55}
 
-/* skelet */
+/* скелет */
 .sk{background:var(--card); border-radius:var(--r); height:104px; margin-bottom:12px;
     animation:pulse 1.3s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.8}}
 
-/* tanlash */
+/* танлаш */
 .pick{display:flex; align-items:center; gap:11px}
 .box{width:23px; height:23px; border-radius:7px; border:2px solid var(--line);
      display:grid; place-items:center; flex:none; font-size:13px; color:transparent}
 .box.on{background:var(--accent); border-color:var(--accent); color:#fff}
 
-/* pastki panel */
+/* пастки панел */
 .dock{
   position:fixed; left:12px; right:12px; bottom:12px; z-index:30;
   background:var(--bg); border:1px solid var(--line); border-radius:var(--r);
@@ -112,14 +118,29 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
 .dock.up{transform:translateY(0)}
 .dock .cnt{font:600 13px/1 inherit; margin-bottom:9px}
 
-/* tarix */
+/* тарих */
 .ev{display:flex; gap:11px; padding:11px 0; border-bottom:1px solid var(--line)}
 .ev:last-child{border:0}
 .ev .i{font-size:17px; flex:none; width:24px; text-align:center}
 .ev .t{font-size:13.5px; line-height:1.4}
 .ev .w{color:var(--hint); font-size:11.5px; margin-top:2px}
 
-/* xabar */
+/* пастдан чиқадиган ойна */
+#sheet{position:fixed; inset:0; z-index:50}
+#sheet .bg{position:absolute; inset:0; background:rgba(0,0,0,.45)}
+#sheet .box{
+  position:absolute; left:0; right:0; bottom:0; max-height:78vh; overflow:auto;
+  background:var(--bg); border-radius:var(--r) var(--r) 0 0; padding:16px 14px 24px;
+}
+#sheet .grip{width:38px; height:4px; border-radius:3px; background:var(--line);
+             margin:0 auto 14px}
+.row{display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+     background:var(--card); border:0; border-radius:12px; padding:12px;
+     margin-bottom:8px; color:var(--fg); font:inherit; cursor:pointer}
+.row:active{opacity:.6}
+.row .em{font-size:19px; flex:none}
+
+/* хабар */
 #toast{
   position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(140px);
   background:#1c1c1e; color:#fff; padding:12px 18px; border-radius:13px;
@@ -134,11 +155,11 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
 
 <div class="top">
   <div class="seg">
-    <button data-t="batches" class="on"><span class="ic">📦</span>Partiyalar<span class="n" id="n-batches">0</span></button>
-    <button data-t="customers"><span class="ic">👥</span>Mijozlar<span class="n" id="n-customers">0</span></button>
-    <button data-t="unmatched"><span class="ic">❓</span>Noaniq<span class="n" id="n-unmatched">0</span></button>
-    <button data-t="history"><span class="ic">🕘</span>Tarix<span class="n" id="n-history">0</span></button>
-    <button data-t="access"><span class="ic">⚙️</span>Sozlama<span class="n">&nbsp;</span></button>
+    <button data-t="batches" class="on"><span class="ic">📦</span>Партиялар<span class="n" id="n-batches">0</span></button>
+    <button data-t="customers"><span class="ic">👥</span>Мижозлар<span class="n" id="n-customers">0</span></button>
+    <button data-t="unmatched"><span class="ic">❓</span>Ноаниқ<span class="n" id="n-unmatched">0</span></button>
+    <button data-t="history"><span class="ic">🕘</span>Тарих<span class="n" id="n-history">0</span></button>
+    <button data-t="access"><span class="ic">⚙️</span>Созлама<span class="n">&nbsp;</span></button>
   </div>
 </div>
 
@@ -155,10 +176,15 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
   <div class="cnt" id="dock-n"></div>
   <div class="acts" style="margin:0">
     <select id="dock-batch" style="margin:0 0 8px"></select>
-    <button class="btn sm" onclick="bulkAttach()">📎 Biriktirish</button>
-    <button class="btn sm dngr" onclick="bulkDelete()">🗑 O'chirish</button>
-    <button class="btn sm ghost" onclick="clearPick()">Bekor</button>
+    <button class="btn sm" onclick="bulkAttach()">📎 Бириктириш</button>
+    <button class="btn sm dngr" onclick="bulkDelete()">🗑 Ўчириш</button>
+    <button class="btn sm ghost" onclick="clearPick()">Бекор</button>
   </div>
+</div>
+
+<div id="sheet" hidden>
+  <div class="bg" onclick="closeSheet()"></div>
+  <div class="box"><div class="grip"></div><div id="sheet-body"></div></div>
 </div>
 
 <div id="toast"></div>
@@ -166,12 +192,24 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 let S = null;
+let editing = null;          // qaysi mijoz tahrirlanmoqda
 const picked = new Set();
 
 if (tg) { tg.ready(); tg.expand(); }
 
 const esc = v => String(v == null ? "" : v)
   .replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* onclick="..." ichidagi JS satri uchun.
+   DIQQAT: bu yerda esc() ishlatib bo'lmaydi — u apostrofni &#39; ga
+   aylantiradi, brauzer esa atributni o'qiyotib uni yana ' ga qaytaradi
+   va JS satri o'rtasidan uzilib, butun sahifa ishlamay qoladi
+   (masalan "O'ZBEK" nomli mijozda). Shuning uchun avval JS uchun
+   ekranlaymiz, keyin faqat & < > " ni HTML uchun almashtiramiz. */
+const js = v => String(v == null ? "" : v)
+  .replace(/\\/g, "\\\\").replace(/'/g, "\\'")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 function toast(msg, bad){
   const t = document.getElementById("toast");
@@ -189,8 +227,8 @@ async function api(path, body){
     body: JSON.stringify(Object.assign({initData: (tg && tg.initData) || ""}, body))
   });
   let data = {};
-  try { data = await res.json(); } catch(e) { data = {error: "Server javobi tushunarsiz"}; }
-  if (!res.ok) throw new Error(data.error || ("Xatolik " + res.status));
+  try { data = await res.json(); } catch(e) { data = {error: "Сервер жавоби тушунарсиз"}; }
+  if (!res.ok) throw new Error(data.error || ("Хатолик " + res.status));
   return data;
 }
 
@@ -203,7 +241,7 @@ function showError(msg){
     .forEach(k => { document.getElementById("p-" + k).hidden = true; });
   err.innerHTML = '<div class="empty"><span class="em">⚠️</span>' + esc(msg)
     + '<div class="acts" style="justify-content:center">'
-    + '<button class="btn" onclick="load()">Qayta urinish</button></div></div>';
+    + '<button class="btn" onclick="load()">Қайта уриниш</button></div></div>';
   err.hidden = false;
 }
 
@@ -223,8 +261,8 @@ async function act(action, data, ask){
   if (ask && !confirm(ask)) return;
   try {
     const r = await api("/api/action", {action: action, data: data});
-    S = r; clearPick(); draw();
-    toast(r.message || "Bajarildi"); buzz("success");
+    S = r; editing = null; closeSheet(); clearPick(); draw();
+    toast(r.message || "Бажарилди"); buzz("success");
   } catch(e){ toast(e.message, true); buzz("error"); }
 }
 
@@ -242,7 +280,7 @@ function drawBatches(){
   const el = document.getElementById("p-batches");
   if (!S.batches.length){
     el.innerHTML = '<div class="empty"><span class="em">📦</span>'
-      + "Kutilayotgan partiya yo'q.<br>Guruhga hujjat tashlang.</div>";
+      + "Кутилаётган партия йўқ.<br>Гуруҳга ҳужжат ташланг.</div>";
     return;
   }
   const names = S.customers.map(c => c.name);
@@ -251,85 +289,128 @@ function drawBatches(){
     const cls  = b.missing.length === 0 ? "ok" : (done >= 4 ? "mid" : "low");
     const bar  = S.required.map(t =>
       '<i class="' + (b.missing.includes(t) ? "" : "f") + '"></i>').join("");
+    // Yetishmagan hujjat ustiga BOSSA - unga qo'lda fayl biriktiriladi
     const tags = S.required.map(t => {
-      const has = !b.missing.includes(t);
-      return '<span class="tag ' + (has ? "has" : "no") + '">' + (has ? "✓" : "✗") + " " + t + "</span>";
+      if (!b.missing.includes(t)) return '<span class="tag has">✓ ' + t + "</span>";
+      return '<span class="tag no" onclick="openAttach(\'' + js(b.code) + "','" + t + "')\">"
+           + "✗ " + t + " +</span>";
     }).join("");
     const opts = names.map(n =>
       '<option value="' + esc(n) + '"' + (n === b.customer ? " selected" : "") + ">" + esc(n) + "</option>").join("");
     const files = b.files.map(f =>
       "<div>" + esc(f.type || "—") + " · " + esc(f.name) + "</div>").join("");
     const full = b.missing.length === 0;
-    const ask  = full ? "Pochtaga yuborilsinmi?"
-                      : "Komplekt TO'LIQ EMAS. Baribir yuborilsinmi?";
+    const ask  = full ? "Почтага юборилсинми?"
+                      : "Комплект ТЎЛИҚ ЭМАС. Барибир юборилсинми?";
     return '<div class="card">'
       + '<div class="hd"><div>'
       +   '<div class="name">' + esc(b.display) + "</div>"
-      +   '<div class="meta">' + (b.customer ? esc(b.customer) : "❓ mijoz belgilanmagan")
-      +     (b.truck ? " · fura " + esc(b.truck) : "")
-      +     " · " + b.file_count + " fayl · " + b.age_hours + " soat</div>"
+      +   '<div class="meta">' + (b.customer ? esc(b.customer) : "❓ мижоз белгиланмаган")
+      +     (b.truck ? " · фура " + esc(b.truck) : "")
+      +     " · " + b.file_count + " файл · " + b.age_hours + " соат</div>"
       + '</div><span class="pill ' + cls + '">' + esc(b.progress) + "</span></div>"
       + '<div class="bar">' + bar + "</div>"
       + '<div class="tags">' + tags + "</div>"
-      + "<details><summary>Fayllar (" + b.file_count + ")</summary>"
+      + (full ? "" : '<div class="hintline">Йетишмаган ҳужжат устига босиб, файл бириктиринг</div>')
+      + "<details><summary>Файллар (" + b.file_count + ")</summary>"
       +   '<div class="flist">' + files + "</div></details>"
-      + "<label>Mijoz</label>"
-      + "<select onchange=\"act('batch_assign',{code:'" + esc(b.code) + "',name:this.value})\">"
-      +   '<option value="">— tanlang —</option>' + opts + "</select>"
+      + "<label>Мижоз</label>"
+      + "<select onchange=\"act('batch_assign',{code:'" + js(b.code) + "',name:this.value})\">"
+      +   '<option value="">— танланг —</option>' + opts + "</select>"
       + '<div class="acts">'
-      +   '<button class="btn" onclick="act(\'batch_send\',{code:\'' + esc(b.code) + "'},'" + ask + "')\">📤 Yuborish</button>"
-      +   '<button class="btn dngr" onclick="act(\'batch_cancel\',{code:\'' + esc(b.code) + "'},'Bekor qilinsinmi? Fayllar o‘chiriladi.')\">🗑</button>"
+      +   '<button class="btn" onclick="act(\'batch_send\',{code:\'' + js(b.code) + "'},'" + ask + "')\">📤 Юбориш</button>"
+      +   '<button class="btn dngr" onclick="act(\'batch_cancel\',{code:\'' + js(b.code) + "'},'Бекор қилинсинми? Файллар ўчирилади.')\">🗑</button>"
       + "</div></div>";
   }).join("");
 }
 
+/* Yetishmagan hujjat ustiga bosilganda: noaniq fayllardan birini tanlab,
+   AYNAN shu tur sifatida partiyaga biriktirish */
+function openAttach(code, type){
+  if (!S.unmatched.length){
+    toast("Ноаниқ файллар йўқ — аввал ҳужжатни гуруҳга ташланг", true);
+    return;
+  }
+  const rows = S.unmatched.map(u =>
+    '<button class="row" onclick="act(\'unmatched_attach\',{id:\'' + js(u.id)
+    + "',code:'" + js(code) + "',type:'" + type + "'})\">"
+    + '<span class="em">📄</span><span><b>' + esc(u.filename) + "</b>"
+    + '<div class="meta">' + esc(u.id) + " · " + u.age_hours + " соат олдин</div></span></button>").join("");
+  showSheet('<div class="name">' + type + " сифатида бириктириш</div>"
+    + '<div class="meta" style="margin-bottom:14px">' + esc(code)
+    + " партиясига қайси файл қўшилсин?</div>" + rows);
+}
+
+function showSheet(html){
+  document.getElementById("sheet-body").innerHTML = html;
+  document.getElementById("sheet").hidden = false;
+}
+function closeSheet(){ document.getElementById("sheet").hidden = true; }
+
 function drawCustomers(){
   const el = document.getElementById("p-customers");
-  const list = S.customers.map(c =>
-    '<div class="card">'
-    + '<div class="name">' + esc(c.name) + "</div>"
-    + '<div class="meta">' + (esc(c.emails.join(", ")) || "⚠️ email yo‘q") + "</div>"
-    + '<div class="tags" style="margin-top:9px">'
-    +   c.prefixes.map(p => '<span class="tag has">🔗 ' + esc(p) + "</span>").join("")
-    +   c.aliases.map(a => '<span class="tag">🔤 ' + esc(a) + "</span>").join("")
-    + "</div>"
-    + '<div class="acts">'
-    +   '<button class="btn sm ghost" onclick="askPrefix(\'' + esc(c.name) + '\')">+ Prefiks</button>'
-    +   '<button class="btn sm ghost" onclick="askAlias(\'' + esc(c.name) + '\')">+ Alias</button>'
-    +   '<button class="btn sm dngr" onclick="act(\'customer_remove\',{name:\'' + esc(c.name) + "'},'Mijoz o‘chirilsinmi?')\">🗑</button>"
-    + "</div></div>").join("");
+  const list = S.customers.map(c => {
+    if (editing === c.name){
+      return '<div class="card">'
+        + '<div class="name">✏️ ' + esc(c.name) + "</div>"
+        + "<label>Номи</label><input id=\"e-name\" value=\"" + esc(c.name) + "\">"
+        + "<label>Email (вергул билан)</label><input id=\"e-mail\" value=\""
+        +   esc(c.emails.join(", ")) + "\">"
+        + '<div class="acts">'
+        +   '<button class="btn" onclick="saveCustomer(\'' + js(c.name) + '\')">Сақлаш</button>'
+        +   '<button class="btn ghost" onclick="editing=null;drawCustomers()">Бекор</button>'
+        + "</div></div>";
+    }
+    const chips =
+        c.prefixes.map(p => '<span class="tag has">🔗 ' + esc(p)
+          + '<span class="x" onclick="act(\'prefix_remove\',{prefix:\'' + js(p)
+          + "'})\">✕</span></span>").join("")
+      + c.aliases.map(a => '<span class="tag">🔤 ' + esc(a)
+          + '<span class="x" onclick="act(\'alias_remove\',{name:\'' + js(c.name)
+          + "',alias:'" + js(a) + "'})\">✕</span></span>").join("");
+    return '<div class="card">'
+      + '<div class="name">' + esc(c.name) + "</div>"
+      + '<div class="meta">' + (esc(c.emails.join(", ")) || "⚠️ email йўқ") + "</div>"
+      + '<div class="tags" style="margin-top:9px">' + chips + "</div>"
+      + '<div class="acts">'
+      +   '<button class="btn sm ghost" onclick="editing=\'' + js(c.name) + '\';drawCustomers()">✏️ Таҳрирлаш</button>'
+      +   '<button class="btn sm ghost" onclick="askPrefix(\'' + js(c.name) + '\')">+ Префикс</button>'
+      +   '<button class="btn sm ghost" onclick="askAlias(\'' + js(c.name) + '\')">+ Alias</button>'
+      +   '<button class="btn sm dngr" onclick="act(\'customer_remove\',{name:\'' + js(c.name) + "'},'Мижоз ўчирилсинми?')\">🗑</button>"
+      + "</div></div>";
+  }).join("");
 
   el.innerHTML = list
-    + '<div class="card"><div class="name">➕ Yangi mijoz</div>'
-    + "<label>Nomi</label><input id=\"c-name\" placeholder=\"GALLAKTIKA\">"
-    + "<label>Email (vergul bilan)</label><input id=\"c-mail\" placeholder=\"a@b.com, c@d.com\">"
-    + '<div class="acts"><button class="btn" onclick="addCustomer()">Saqlash</button></div></div>';
+    + '<div class="card"><div class="name">➕ Янги мижоз</div>'
+    + "<label>Номи</label><input id=\"c-name\" placeholder=\"GALLAKTIKA\">"
+    + "<label>Email (вергул билан)</label><input id=\"c-mail\" placeholder=\"a@b.com, c@d.com\">"
+    + '<div class="acts"><button class="btn" onclick="addCustomer()">Сақлаш</button></div></div>';
 }
 
 function drawUnmatched(){
   const el = document.getElementById("p-unmatched");
   if (!S.unmatched.length){
-    el.innerHTML = '<div class="empty"><span class="em">✨</span>Noaniq fayllar yo‘q.</div>';
+    el.innerHTML = '<div class="empty"><span class="em">✨</span>Ноаниқ файллар йўқ.</div>';
     return;
   }
   const head = '<div class="card"><div class="pick" onclick="pickAll()">'
     + '<div class="box ' + (picked.size === S.unmatched.length ? "on" : "") + '">✓</div>'
-    + "<div><div class=\"name\" style=\"font-size:14px\">Hammasini tanlash</div>"
-    + '<div class="meta">' + S.unmatched.length + " ta fayl</div></div></div></div>";
+    + "<div><div class=\"name\" style=\"font-size:14px\">Ҳаммасини танлаш</div>"
+    + '<div class="meta">' + S.unmatched.length + " та файл</div></div></div></div>";
 
   el.innerHTML = head + S.unmatched.map(u =>
-    '<div class="card ' + (picked.has(u.id) ? "sel" : "") + '" onclick="pick(\'' + esc(u.id) + '\')">'
+    '<div class="card ' + (picked.has(u.id) ? "sel" : "") + '" onclick="pick(\'' + js(u.id) + '\')">'
     + '<div class="pick">'
     +   '<div class="box ' + (picked.has(u.id) ? "on" : "") + '">✓</div>'
     +   "<div><div class=\"name\" style=\"font-size:14px\">" + esc(u.filename) + "</div>"
-    +   '<div class="meta">' + esc(u.id) + " · " + u.age_hours + " soat oldin</div></div>"
+    +   '<div class="meta">' + esc(u.id) + " · " + u.age_hours + " соат олдин</div></div>"
     + "</div></div>").join("");
 }
 
 function drawHistory(){
   const el = document.getElementById("p-history");
   if (!S.history || !S.history.length){
-    el.innerHTML = '<div class="empty"><span class="em">🕘</span>Tarix bo‘sh.</div>';
+    el.innerHTML = '<div class="empty"><span class="em">🕘</span>Тарих бўш.</div>';
     return;
   }
   el.innerHTML = '<div class="card">' + S.history.map(h =>
@@ -342,9 +423,9 @@ function drawHistory(){
 function when(ts){
   const d = new Date(ts * 1000), now = Date.now() / 1000;
   const diff = now - ts;
-  if (diff < 60) return "hozir";
-  if (diff < 3600) return Math.floor(diff / 60) + " daqiqa oldin";
-  if (diff < 86400) return Math.floor(diff / 3600) + " soat oldin";
+  if (diff < 60) return "ҳозир";
+  if (diff < 3600) return Math.floor(diff / 60) + " дақиқа олдин";
+  if (diff < 86400) return Math.floor(diff / 3600) + " соат олдин";
   return d.toLocaleDateString("uz-UZ") + " " + d.toTimeString().slice(0, 5);
 }
 
@@ -352,31 +433,31 @@ function drawAccess(){
   const el = document.getElementById("p-access");
   const groups = S.groups.length
     ? S.groups.map(g => '<div class="card">'
-        + '<div class="name" style="font-size:14.5px">' + (esc(g.title) || "(nomsiz)") + "</div>"
+        + '<div class="name" style="font-size:14.5px">' + (esc(g.title) || "(номсиз)") + "</div>"
         + '<div class="meta">' + esc(g.id) + "</div>"
         + '<div class="acts"><button class="btn sm dngr" onclick="act(\'group_remove\',{id:\''
-        + esc(g.id) + "'},'Guruh olib tashlansinmi?')\">🗑 Olib tashlash</button></div></div>").join("")
-    : '<div class="card"><div class="meta">Ro‘yxat bo‘sh — bot barcha guruhlardan qabul qiladi.</div></div>';
+        + esc(g.id) + "'},'Гуруҳ олиб ташлансинми?')\">🗑 Олиб ташлаш</button></div></div>").join("")
+    : '<div class="card"><div class="meta">Рўйхат бўш — бот барча гуруҳлардан қабул қилади.</div></div>';
 
   const admins = S.admins.length
     ? S.admins.map(a => '<div class="card">'
-        + '<div class="name" style="font-size:14.5px">' + (esc(a.name) || "(ismsiz)") + "</div>"
+        + '<div class="name" style="font-size:14.5px">' + (esc(a.name) || "(исмсиз)") + "</div>"
         + '<div class="meta">' + esc(a.id) + "</div>"
         + '<div class="acts"><button class="btn sm dngr" onclick="act(\'admin_remove\',{id:\''
-        + esc(a.id) + "'},'Admin huquqi olib tashlansinmi?')\">🗑 Olib tashlash</button></div></div>").join("")
-    : '<div class="card"><div class="meta">Qo‘shimcha admin yo‘q.</div></div>';
+        + esc(a.id) + "'},'Админ ҳуқуқи олиб ташлансинми?')\">🗑 Олиб ташлаш</button></div></div>").join("")
+    : '<div class="card"><div class="meta">Қўшимча админ йўқ.</div></div>';
 
   el.innerHTML =
-      '<div class="card"><div class="name">📢 Guruhlar</div>'
-    + '<div class="meta">Bot faqat shu guruhlardan hujjat oladi. Yangisini qo‘shish uchun '
-    + "o‘sha guruhda <b>/group_add</b> yozing.</div></div>" + groups
-    + '<div class="card"><div class="name">👤 Adminlar</div>'
-    + '<div class="meta">Egasi: ' + esc(S.owner) + " — o‘chirib bo‘lmaydi.<br>"
-    + "ID ni bilish uchun o‘sha odam botga <b>/myid</b> yozsin.</div></div>" + admins
-    + '<div class="card"><div class="name">➕ Admin qo‘shish</div>'
+      '<div class="card"><div class="name">📢 Гуруҳлар</div>'
+    + '<div class="meta">Бот фақат шу гуруҳлардан ҳужжат олади. Янгисини қўшиш учун '
+    + "ўша гуруҳда <b>/group_add</b> ёзинг.</div></div>" + groups
+    + '<div class="card"><div class="name">👤 Админлар</div>'
+    + '<div class="meta">Эгаси: ' + esc(S.owner) + " — ўчириб бўлмайди.<br>"
+    + "ID ни билиш учун ўша одам ботга <b>/myid</b> ёзсин.</div></div>" + admins
+    + '<div class="card"><div class="name">➕ Админ қўшиш</div>'
     + "<label>Telegram ID</label><input id=\"a-id\" inputmode=\"numeric\" placeholder=\"123456789\">"
-    + "<label>Ism</label><input id=\"a-name\" placeholder=\"Aziz\">"
-    + '<div class="acts"><button class="btn" onclick="addAdmin()">Qo‘shish</button></div></div>';
+    + "<label>Исм</label><input id=\"a-name\" placeholder=\"Aziz\">"
+    + '<div class="acts"><button class="btn" onclick="addAdmin()">Қўшиш</button></div></div>';
 }
 
 /* ---------- tanlash ---------- */
@@ -389,44 +470,50 @@ function pickAll(){
   else S.unmatched.forEach(u => picked.add(u.id));
   drawUnmatched(); syncDock();
 }
-function clearPick(){ picked.clear(); drawUnmatched && S && drawUnmatched(); syncDock(); }
+function clearPick(){ picked.clear(); if (S) drawUnmatched(); syncDock(); }
 
 function syncDock(){
   const d = document.getElementById("dock");
   if (!S || !picked.size){ d.className = "dock"; return; }
-  document.getElementById("dock-n").textContent = picked.size + " ta fayl tanlandi";
+  document.getElementById("dock-n").textContent = picked.size + " та файл танланди";
   document.getElementById("dock-batch").innerHTML =
-    '<option value="">— partiyani tanlang —</option>'
+    '<option value="">— партияни танланг —</option>'
     + S.batches.map(b => '<option value="' + esc(b.code) + '">' + esc(b.display) + "</option>").join("");
   d.className = "dock up";
 }
 function bulkAttach(){
   const code = document.getElementById("dock-batch").value;
-  if (!code){ toast("Partiyani tanlang", true); return; }
+  if (!code){ toast("Партияни танланг", true); return; }
   act("unmatched_bulk", {ids: [...picked], code: code});
 }
 function bulkDelete(){
-  act("unmatched_bulk", {ids: [...picked], mode: "delete"}, picked.size + " ta fayl o‘chirilsinmi?");
+  act("unmatched_bulk", {ids: [...picked], mode: "delete"}, picked.size + " та файл ўчирилсинми?");
 }
 
 /* ---------- formalar ---------- */
 function addCustomer(){
   const name = document.getElementById("c-name").value.trim();
   const emails = document.getElementById("c-mail").value.trim();
-  if (!name || !emails){ toast("Nom va email kiriting", true); return; }
+  if (!name || !emails){ toast("Ном ва email киритинг", true); return; }
   act("customer_add", {name: name, emails: emails});
+}
+function saveCustomer(old){
+  const name = document.getElementById("e-name").value.trim();
+  const emails = document.getElementById("e-mail").value.trim();
+  if (!name || !emails){ toast("Ном ва email киритинг", true); return; }
+  act("customer_update", {old: old, name: name, emails: emails});
 }
 function addAdmin(){
   const id = document.getElementById("a-id").value.trim();
-  if (!id){ toast("ID kiriting", true); return; }
+  if (!id){ toast("ID киритинг", true); return; }
   act("admin_add", {id: id, name: document.getElementById("a-name").value.trim()});
 }
 function askPrefix(name){
-  const p = prompt("Prefiks (masalan NGS):");
+  const p = prompt("Префикс (масалан NGS):");
   if (p) act("prefix_add", {name: name, prefix: p});
 }
 function askAlias(name){
-  const a = prompt("Alias (muqobil nom):");
+  const a = prompt("Alias (муқобил ном):");
   if (a) act("alias_add", {name: name, alias: a});
 }
 

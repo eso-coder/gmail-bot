@@ -159,5 +159,16 @@ def forget_customer(customer_name: str) -> int:
     return len(codes)
 
 
+def rename_customer(old: str, new: str) -> int:
+    """Mijoz nomi o'zgarganda, kod xotirasidagi nomni ham yangilaydi."""
+    data = _load()
+    codes = [c for c, name in data.items() if name == old]
+    for code in codes:
+        data[code] = new
+    if codes:
+        _save(data)
+    return len(codes)
+
+
 def all_sessions() -> dict:
     return _load()

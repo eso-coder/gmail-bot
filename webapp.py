@@ -84,10 +84,10 @@ def _require_admin(payload: dict):
     """Qaytaradi: (user, xato_javobi). Xato bo'lmasa xato_javobi None."""
     user = _check_init_data(payload.get("initData", ""))
     if not user:
-        return None, web.json_response({"error": "Imzo tekshiruvidan o'tmadi"}, status=401)
+        return None, web.json_response({"error": "Имзо текширувидан ўтмади"}, status=401)
     if not access_store.is_admin(user.get("id")):
         logger.warning("Mini App: ruxsatsiz urinish, user id=%s", user.get("id"))
-        return None, web.json_response({"error": "Sizda ruxsat yo'q"}, status=403)
+        return None, web.json_response({"error": "Сизда рухсат йўқ"}, status=403)
     return user, None
 
 
@@ -153,44 +153,79 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
         name = (data.get("name") or "").strip()
         emails = [e.strip() for e in (data.get("emails") or "").split(",") if e.strip()]
         if not name:
-            return {"error": "Mijoz nomi bo'sh"}
+            return {"error": "Мижоз номи бўш"}
         bad = [e for e in emails if not customer_store.is_valid_email(e)]
         if bad:
-            return {"error": "Email noto'g'ri: " + ", ".join(bad)}
+            return {"error": "Email нотўғри: " + ", ".join(bad)}
         if not emails:
-            return {"error": "Kamida bitta email kiriting"}
+            return {"error": "Камида битта email киритинг"}
         customer_store.add_customer(name, emails)
-        return {"ok": True, "message": f"{name.upper()} saqlandi"}
+        return {"ok": True, "message": f"{name.upper()} сақланди"}
+
+    if action == "customer_update":
+        # Nom va/yoki email ro'yxatini tahrirlaydi
+        old = (data.get("old") or "").strip().upper()
+        new = (data.get("name") or "").strip().upper()
+        if not customer_store.exists(old):
+            return {"error": "Мижоз топилмади"}
+
+        if new and new != old:
+            if customer_store.exists(new):
+                return {"error": f"{new} номли мижоз аллақачон бор"}
+            if not customer_store.rename_customer(old, new):
+                return {"error": "Номни ўзгартириб бўлмади"}
+            # Kod xotirasi va kutib turgan partiyalardagi nomni ham yangilaymiz
+            session_store.rename_customer(old, new)
+            batch_store.rename_customer(old, new)
+        else:
+            new = old
+
+        raw = data.get("emails")
+        if raw is not None:
+            emails = [e.strip() for e in str(raw).split(",") if e.strip()]
+            bad = [e for e in emails if not customer_store.is_valid_email(e)]
+            if bad:
+                return {"error": "Email нотўғри: " + ", ".join(bad)}
+            if not emails:
+                return {"error": "Камида битта email киритинг"}
+            customer_store.set_emails(new, emails)
+
+        return {"ok": True, "message": f"{new} янгиланди"}
+
+    if action == "alias_remove":
+        if customer_store.remove_alias(data.get("alias", ""), data.get("name", "")):
+            return {"ok": True, "message": "Alias ўчирилди"}
+        return {"error": "Alias топилмади"}
 
     if action == "customer_remove":
         name = data.get("name") or ""
         if customer_store.remove_customer(name):
             session_store.forget_customer(name.strip().upper())
-            return {"ok": True, "message": f"{name} o'chirildi"}
-        return {"error": "Mijoz topilmadi"}
+            return {"ok": True, "message": f"{name} ўчирилди"}
+        return {"error": "Мижоз топилмади"}
 
     if action == "prefix_add":
         if customer_store.add_prefix(data.get("prefix", ""), data.get("name", "")):
-            return {"ok": True, "message": "Prefiks bog'landi"}
-        return {"error": "Bog'lanmadi — mijoz yoki prefiks noto'g'ri"}
+            return {"ok": True, "message": "Префикс боғланди"}
+        return {"error": "Боғланмади — мижоз ёки префикс нотўғри"}
 
     if action == "prefix_remove":
         if customer_store.remove_prefix(data.get("prefix", "")):
-            return {"ok": True, "message": "Prefiks o'chirildi"}
-        return {"error": "Prefiks topilmadi"}
+            return {"ok": True, "message": "Префикс ўчирилди"}
+        return {"error": "Префикс топилмади"}
 
     if action == "alias_add":
         alias = (data.get("alias") or "").strip()
         if len(alias) < customer_store.MIN_NAME_MATCH_LEN:
-            return {"error": f"Alias kamida {customer_store.MIN_NAME_MATCH_LEN} belgi bo'lishi kerak"}
+            return {"error": f"Alias kamida {customer_store.MIN_NAME_MATCH_LEN} белги бўлиши керак"}
         if customer_store.add_alias(alias, data.get("name", "")):
-            return {"ok": True, "message": "Alias qo'shildi"}
-        return {"error": "Qo'shilmadi — mijoz topilmadi"}
+            return {"ok": True, "message": "Alias қўшилди"}
+        return {"error": "Қўшилмади — мижоз топилмади"}
 
     if action == "batch_assign":
         code, name = data.get("code", ""), (data.get("name") or "").strip().upper()
         if not customer_store.exists(name):
-            return {"error": "Mijoz topilmadi"}
+            return {"error": "Мижоз топилмади"}
         if batch_store.set_customer(code, name):
             session_store.remember(code, name)
             return {"ok": True, "message": f"{code} → {name}"}
@@ -201,70 +236,78 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
         if not batch_store.get_batch(code):
             return {"error": "Partiya topilmadi"}
         batch_store.clear_batch(code)
-        return {"ok": True, "message": f"{code} bekor qilindi"}
+        return {"ok": True, "message": f"{code} бекор қилинди"}
 
     if action == "batch_send":
         code = data.get("code", "")
         if not batch_store.get_batch(code):
             return {"error": "Partiya topilmadi"}
         await ctx["send_batch"](code)
-        return {"ok": True, "message": f"{code} yuborish boshlandi — natijani chatda ko'ring"}
+        return {"ok": True, "message": f"{code} юбориш бошланди — натижани чатда кўринг"}
 
     if action == "unmatched_attach":
-        entry = ctx["attach_unmatched"](data.get("id", ""), (data.get("code") or "").upper())
+        # `type` berilsa - fayl AYNAN shu hujjat turi sifatida biriktiriladi.
+        # Shu tufayli nomi noto'g'ri yozilgan hujjatni ham qo'lda joyiga
+        # qo'yish mumkin ("yetishmagan AKT ustiga bosib biriktirish").
+        forced = (data.get("type") or "").strip().upper() or None
+        if forced and forced not in doc_types.ATTACHABLE:
+            return {"error": f"Нотаниш ҳужжат тури: {forced}"}
+        entry = ctx["attach_unmatched"](data.get("id", ""),
+                                        (data.get("code") or "").upper(), forced)
         if not entry:
-            return {"error": "Fayl topilmadi"}
-        return {"ok": True, "message": f"{entry['filename']} biriktirildi"}
+            return {"error": "Файл топилмади"}
+        suffix = f" → {forced}" if forced else ""
+        return {"ok": True, "message": f"{entry['filename']} бириктирилди{suffix}"}
 
     if action == "unmatched_delete":
         if unmatched_store.remove(data.get("id", ""), delete_file=True):
-            return {"ok": True, "message": "O'chirildi"}
-        return {"error": "Fayl topilmadi"}
+            return {"ok": True, "message": "Ўчирилди"}
+        return {"error": "Файл топилмади"}
 
     if action in ("admin_add", "admin_remove"):
         # Admin ro'yxatini FAQAT bot egasi o'zgartira oladi
         if not access_store.is_owner(ctx["user_id"]):
-            return {"error": "Admin ro'yxatini faqat bot egasi o'zgartira oladi"}
+            return {"error": "Админ рўйхатини фақат бот эгаси ўзгартира олади"}
         raw = str(data.get("id", "")).strip()
         if not raw.lstrip("-").isdigit():
-            return {"error": "ID raqam bo'lishi kerak"}
+            return {"error": "ID рақам бўлиши керак"}
         uid = int(raw)
         if action == "admin_add":
             if access_store.is_owner(uid):
-                return {"error": "Bu allaqachon bot egasi"}
+                return {"error": "Бу аллақачон бот эгаси"}
             if access_store.add_admin(uid, (data.get("name") or "").strip()):
-                return {"ok": True, "message": f"Admin qo'shildi: {uid}"}
-            return {"error": "Allaqachon admin"}
+                return {"ok": True, "message": f"Админ қўшилди: {uid}"}
+            return {"error": "Аллақачон админ"}
         if access_store.is_owner(uid):
-            return {"error": "Bot egasini o'chirib bo'lmaydi"}
+            return {"error": "Бот эгасини ўчириб бўлмайди"}
         if access_store.remove_admin(uid):
-            return {"ok": True, "message": f"Admin o'chirildi: {uid}"}
-        return {"error": "Admin topilmadi"}
+            return {"ok": True, "message": f"Админ ўчирилди: {uid}"}
+        return {"error": "Админ топилмади"}
 
     if action == "group_remove":
         raw = str(data.get("id", "")).strip()
         if not raw.lstrip("-").isdigit():
-            return {"error": "ID raqam bo'lishi kerak"}
+            return {"error": "ID рақам бўлиши керак"}
         if access_store.remove_group(int(raw)):
-            return {"ok": True, "message": "Guruh olib tashlandi"}
-        return {"error": "Guruh topilmadi"}
+            return {"ok": True, "message": "Гуруҳ олиб ташланди"}
+        return {"error": "Гуруҳ топилмади"}
 
     if action == "unmatched_bulk":
         ids = data.get("ids") or []
         if not ids:
-            return {"error": "Birorta fayl tanlanmadi"}
+            return {"error": "Бирорта файл танланмади"}
 
         if data.get("mode") == "delete":
             n = sum(1 for i in ids if unmatched_store.remove(i, delete_file=True))
-            return {"ok": True, "message": f"{n} ta fayl o'chirildi"}
+            return {"ok": True, "message": f"{n} та файл ўчирилди"}
 
         code = (data.get("code") or "").upper()
         if not code:
-            return {"error": "Partiya tanlanmadi"}
+            return {"error": "Партия танланмади"}
         n = sum(1 for i in ids if ctx["attach_unmatched"](i, code))
         if not n:
-            return {"error": "Hech qaysi fayl biriktirilmadi"}
-        return {"ok": True, "message": f"{n} ta fayl {code} ga biriktirildi"}
+            return {"error": "Ҳеч қайси файл бириктирилмади"}
+        return {"ok": True, "message": f"{n} та файл {code} га бириктирилди"}
 
     return {"error": f"Noma'lum amal: {action}"}
 
@@ -282,14 +325,14 @@ def create_app(ctx) -> web.Application:
     async def index(request):
         path = os.path.join(WEB_DIR, "index.html")
         if not os.path.exists(path):
-            return web.Response(text="index.html topilmadi", status=404)
+            return web.Response(text="index.html топилмади", status=404)
         return web.FileResponse(path)
 
     async def api_state(request):
         try:
             payload = await request.json()
         except Exception:
-            return web.json_response({"error": "Noto'g'ri so'rov"}, status=400)
+            return web.json_response({"error": "Нотўғри сўров"}, status=400)
         user, err = _require_admin(payload)
         if err:
             return err
@@ -299,7 +342,7 @@ def create_app(ctx) -> web.Application:
         try:
             payload = await request.json()
         except Exception:
-            return web.json_response({"error": "Noto'g'ri so'rov"}, status=400)
+            return web.json_response({"error": "Нотўғри сўров"}, status=400)
         user, err = _require_admin(payload)
         if err:
             return err
@@ -310,7 +353,7 @@ def create_app(ctx) -> web.Application:
                                       {**ctx, "user_id": user.get("id")})
         except Exception as e:
             logger.exception("Mini App amali xato: %s", action)
-            result = {"error": f"Xatolik: {e}"}
+            result = {"error": f"Хатолик: {e}"}
 
         if "error" in result:
             return web.json_response(result, status=400)

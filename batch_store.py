@@ -28,7 +28,8 @@ def get_batch(code: str):
 
 def add_file(code: str, filename: str, local_path: str = None, file_unique_id: str = None,
              customer: str = None, display: str = None, doc_type: str = None,
-             truck: str = None, file_id: str = None, message_id: int = None) -> dict:
+             truck: str = None, file_id: str = None, message_id: int = None,
+             user_id: int = None, user_name: str = None) -> dict:
     """
     Partiyaga fayl qo'shadi.
 
@@ -59,6 +60,9 @@ def add_file(code: str, filename: str, local_path: str = None, file_unique_id: s
         "message_id": message_id,
         "doc_type": doc_type,
         "truck": truck,
+        # Kim yuborgani - hujjatlar chala bo'lsa shu odam eslatiladi
+        "user_id": user_id,
+        "user_name": user_name,
     })
     batch["updated_at"] = time.time()
 
@@ -162,6 +166,19 @@ def set_customer(code: str, customer: str) -> bool:
         _save(data)
         return True
     return False
+
+
+def rename_customer(old: str, new: str) -> int:
+    """Mijoz nomi o'zgarganda kutib turgan partiyalardagi nomni ham yangilaydi."""
+    data = _load()
+    changed = 0
+    for batch in data.values():
+        if batch.get("customer") == old:
+            batch["customer"] = new
+            changed += 1
+    if changed:
+        _save(data)
+    return changed
 
 
 def _delete_files(batch: dict) -> None:

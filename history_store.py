@@ -32,6 +32,8 @@ ICONS = {
     "prefix_add": "🔗",
     "prefix_remove": "🔗",
     "alias_add": "🔤",
+    "alias_remove": "🔤",
+    "customer_update": "✏️",
     "unmatched_attach": "📎",
     "unmatched_delete": "🗑",
     "admin_add": "👑",

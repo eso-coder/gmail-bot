@@ -66,16 +66,16 @@ SETUP_HINT = (
     "Sozlash:\n"
     "1) 2 bosqichli tasdiqlashni yoqing: myaccount.google.com/signinoptions/twosv\n"
     "2) Ilova paroli oling: myaccount.google.com/apppasswords\n"
-    "3) config.py dagi GMAIL_ADDRESS va GMAIL_APP_PASSWORD ga yozing"
+    "3) config.py даги GMAIL_ADDRESS ва GMAIL_APP_PASSWORD га ёзинг"
 )
 
 AUTH_HINT = (
-    "Gmail login yoki parolni qabul qilmadi.\n\n"
-    "Tekshiring:\n"
-    "• GMAIL_APP_PASSWORD — bu oddiy Gmail parolingiz EMAS, "
+    "Gmail логин ёки паролни қабул қилмади.\n\n"
+    "Текширинг:\n"
+    "• GMAIL_APP_PASSWORD — бу оддий Gmail паролингиз ЭМАС, "
     "myaccount.google.com/apppasswords dan olingan 16 belgili maxsus parol\n"
-    "• Google hisobingizda 2 bosqichli tasdiqlash yoqilganmi "
-    "(usiz ilova paroli yaratib bo'lmaydi)\n"
+    "• Google ҳисобингизда 2 босқичли тасдиқлаш ёқилганми "
+    "(усиз илова пароли яратиб бўлмайди)\n"
     "• GMAIL_ADDRESS parol olingan hisobning manziliga mos keladimi"
 )
 
@@ -98,12 +98,12 @@ def _get_address() -> str:
 
 
 BLOCKED_HINT = (
-    "Server chiquvchi SMTP portlarini bloklagan ko'rinadi.\n\n"
-    "Bu hosting provayder (Railway, Render va h.k.) spamning oldini olish uchun\n"
-    "qo'yadigan cheklov — kod yoki parolda muammo yo'q.\n\n"
+    "Сервер чиқувчи SMTP портларини блоклаган кўринади.\n\n"
+    "Бу ҳостинг провайдер (Railway, Render ва ҳ.к.) спамнинг олдини олиш учун\n"
+    "қўядиган чеклов — код ёки паролда муаммо йўқ.\n\n"
     "Yechimlar:\n"
-    "1) Botni oddiy VPS ga ko'chirish (SMTP bloklanmaydi)\n"
-    "2) SMTP o'rniga HTTPS orqali ishlaydigan pochta xizmatiga o'tish"
+    "1) Ботни оддий VPS га кўчириш (SMTP блокланмайди)\n"
+    "2) SMTP ўрнига HTTPS орқали ишлайдиган почта хизматига ўтиш"
 )
 
 
@@ -132,9 +132,9 @@ def _connect():
     password = _get_password()
 
     if not address or not password:
-        raise GmailError(f"Gmail manzili yoki ilova paroli belgilanmagan.\n\n{SETUP_HINT}")
+        raise GmailError(f"Gmail манзили ёки илова пароли белгиланмаган.\n\n{SETUP_HINT}")
     if "@" not in address:
-        raise GmailError(f"GMAIL_ADDRESS noto'g'ri: {address!r}\n\n{SETUP_HINT}")
+        raise GmailError(f"GMAIL_ADDRESS нотўғри: {address!r}\n\n{SETUP_HINT}")
     if len(password) != 16:
         logger.warning("Ilova paroli 16 belgi emas (%d ta) - xato bo'lishi mumkin", len(password))
 
@@ -174,7 +174,7 @@ def _connect():
 
     detail = "\n".join(f"   • {e}" for e in connect_errors)
     raise GmailError(
-        f"Gmail serveriga ulanib bo'lmadi — barcha portlar yopiq:\n{detail}\n\n{BLOCKED_HINT}"
+        f"Gmail серверига уланиб бўлмади — барча портлар ёпиқ:\n{detail}\n\n{BLOCKED_HINT}"
     )
 
 
@@ -189,13 +189,13 @@ def check_credentials():
         return False, str(e)
     except Exception as e:
         logger.exception("Gmail tekshiruvida kutilmagan xatolik")
-        return False, f"Tekshirib bo'lmadi: {e}"
+        return False, f"Текшириб бўлмади: {e}"
 
     try:
         server.quit()
     except smtplib.SMTPException:
         server.close()
-    return True, f"ruxsat ishlayapti ({_get_address()})"
+    return True, f"рухсат ишлаяпти ({_get_address()})"
 
 
 def check_attachments(file_paths: list):
@@ -263,13 +263,13 @@ def send_batch_to_multiple(emails: list, subject: str, body_text: str, file_path
     # Ulanish yoki fayllarni tayyorlashdagi xatolik - hamma manzilga tegishli
     try:
         if not file_paths:
-            raise GmailError("Biror fayl biriktirilmagan.")
+            raise GmailError("Бирор файл бириктирилмаган.")
         missing, total = check_attachments(file_paths)
         if missing:
-            raise GmailError("Bu fayllar diskda topilmadi: " + ", ".join(missing))
+            raise GmailError("Бу файллар дискда топилмади: " + ", ".join(missing))
         if total > MAX_TOTAL_BYTES:
             raise GmailError(
-                f"Fayllar hajmi juda katta ({total / 1024 / 1024:.1f} MB). "
+                f"Файллар ҳажми жуда катта ({total / 1024 / 1024:.1f} MB). "
                 f"Gmail chegarasi ~{MAX_TOTAL_BYTES // 1024 // 1024} MB."
             )
         base_message = _build_message(subject, body_text, file_paths)
@@ -278,7 +278,7 @@ def send_batch_to_multiple(emails: list, subject: str, body_text: str, file_path
         return {email: str(e) for email in emails}
     except Exception as e:
         logger.exception("Xat tayyorlashda kutilmagan xatolik")
-        return {email: f"Kutilmagan xatolik: {e}" for email in emails}
+        return {email: f"Кутилмаган хатолик: {e}" for email in emails}
 
     results = {}
     try:
