@@ -28,6 +28,7 @@ import batch_store
 import config
 import customer_store
 import doc_types
+import history_store
 import session_store
 import storage
 import unmatched_store
@@ -139,6 +140,7 @@ def _collect_state() -> dict:
         "groups": groups,
         "admins": admins,
         "owner": access_store.owner_id(),
+        "history": history_store.recent(60),
     }
 
 
@@ -247,6 +249,23 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
             return {"ok": True, "message": "Guruh olib tashlandi"}
         return {"error": "Guruh topilmadi"}
 
+    if action == "unmatched_bulk":
+        ids = data.get("ids") or []
+        if not ids:
+            return {"error": "Birorta fayl tanlanmadi"}
+
+        if data.get("mode") == "delete":
+            n = sum(1 for i in ids if unmatched_store.remove(i, delete_file=True))
+            return {"ok": True, "message": f"{n} ta fayl o'chirildi"}
+
+        code = (data.get("code") or "").upper()
+        if not code:
+            return {"error": "Partiya tanlanmadi"}
+        n = sum(1 for i in ids if ctx["attach_unmatched"](i, code))
+        if not n:
+            return {"error": "Hech qaysi fayl biriktirilmadi"}
+        return {"ok": True, "message": f"{n} ta fayl {code} ga biriktirildi"}
+
     return {"error": f"Noma'lum amal: {action}"}
 
 
@@ -295,6 +314,11 @@ def create_app(ctx) -> web.Application:
 
         if "error" in result:
             return web.json_response(result, status=400)
+
+        # Muvaffaqiyatli amalni tarixga yozamiz
+        history_store.add(action, result.get("message", action),
+                          user.get("first_name") or str(user.get("id")))
+
         result.update(_collect_state())
         return web.json_response(result)
 

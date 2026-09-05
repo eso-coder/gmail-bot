@@ -6,309 +6,439 @@
 <title>Export hujjatlar boti</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  :root{
-    --bg: var(--tg-theme-bg-color, #fff);
-    --fg: var(--tg-theme-text-color, #000);
-    --hint: var(--tg-theme-hint-color, #707579);
-    --card: var(--tg-theme-secondary-bg-color, #f4f4f5);
-    --accent: var(--tg-theme-button-color, #2481cc);
-    --accent-fg: var(--tg-theme-button-text-color, #fff);
-    --danger: #d1453b;
-    --ok: #1a9c4d;
-    --line: color-mix(in srgb, var(--hint) 25%, transparent);
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0; background:var(--bg); color:var(--fg);
-    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    padding-bottom:24px;
-  }
-  header{
-    position:sticky; top:0; z-index:10; background:var(--bg);
-    padding:10px 12px 0; border-bottom:1px solid var(--line);
-  }
-  .tabs{display:flex; gap:4px}
-  .tabs button{
-    flex:1; padding:9px 4px; border:0; border-radius:9px 9px 0 0; cursor:pointer;
-    background:transparent; color:var(--hint); font-size:13px; font-weight:600;
-    font-family:inherit;
-  }
-  .tabs button.on{background:var(--card); color:var(--fg)}
-  .tabs .badge{
-    display:inline-block; min-width:17px; padding:0 4px; margin-left:3px;
-    border-radius:9px; background:var(--accent); color:var(--accent-fg);
-    font-size:11px; line-height:17px;
-  }
-  main{padding:12px}
-  .card{background:var(--card); border-radius:12px; padding:12px; margin-bottom:10px}
-  .row{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
-  .title{font-weight:600}
-  .sub{color:var(--hint); font-size:13px; margin-top:3px}
-  .chips{display:flex; flex-wrap:wrap; gap:4px; margin-top:7px}
-  .chip{
-    font-size:11px; padding:2px 7px; border-radius:20px;
-    background:color-mix(in srgb, var(--hint) 18%, transparent);
-  }
-  .chip.ok{background:color-mix(in srgb, var(--ok) 20%, transparent); color:var(--ok)}
-  .chip.miss{background:color-mix(in srgb, var(--danger) 18%, transparent); color:var(--danger)}
-  .acts{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
-  button.act{
-    border:0; border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer;
-    background:var(--accent); color:var(--accent-fg); font-family:inherit; font-weight:500;
-  }
-  button.act.ghost{background:transparent; color:var(--accent); border:1px solid var(--accent)}
-  button.act.danger{background:transparent; color:var(--danger); border:1px solid var(--danger)}
-  input, select{
-    width:100%; padding:9px 10px; margin-top:6px; border-radius:8px;
-    border:1px solid var(--line); background:var(--bg); color:var(--fg);
-    font:inherit; font-size:14px;
-  }
-  label{font-size:12px; color:var(--hint); display:block; margin-top:9px}
-  .empty{text-align:center; color:var(--hint); padding:36px 12px; font-size:14px}
-  .files{margin-top:8px; font-size:12px; color:var(--hint)}
-  .files div{padding:1px 0}
-  #toast{
-    position:fixed; left:50%; bottom:18px; transform:translateX(-50%) translateY(80px);
-    background:#000c; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px;
-    transition:transform .25s; z-index:50; max-width:90%; text-align:center;
-  }
-  #toast.show{transform:translateX(-50%) translateY(0)}
-  #toast.bad{background:var(--danger)}
-  details summary{cursor:pointer; font-size:12px; color:var(--accent); margin-top:8px}
+:root{
+  --bg:      var(--tg-theme-bg-color, #fff);
+  --fg:      var(--tg-theme-text-color, #111);
+  --hint:    var(--tg-theme-hint-color, #8b8f95);
+  --card:    var(--tg-theme-secondary-bg-color, #f5f6f8);
+  --accent:  var(--tg-theme-button-color, #3390ec);
+  --onacc:   var(--tg-theme-button-text-color, #fff);
+  --ok:      #22a06b;
+  --warn:    #e8a33d;
+  --danger:  #e0483d;
+  --line:    color-mix(in srgb, var(--hint) 22%, transparent);
+  --soft:    color-mix(in srgb, var(--hint) 12%, transparent);
+  --r:       16px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  padding-bottom:96px;
+}
+
+/* ---------- Sarlavha ---------- */
+.top{position:sticky; top:0; z-index:20; background:var(--bg);
+     padding:10px 14px 8px; border-bottom:1px solid var(--line)}
+.seg{display:flex; gap:2px; background:var(--soft); padding:3px; border-radius:12px}
+.seg button{
+  flex:1; border:0; background:transparent; color:var(--hint); cursor:pointer;
+  font:600 12px/1 inherit; font-family:inherit; padding:9px 2px; border-radius:9px;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  transition:background .18s, color .18s;
+}
+.seg button .ic{font-size:16px; line-height:1}
+.seg button.on{background:var(--bg); color:var(--fg); box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg .n{font-size:10px; opacity:.75}
+
+/* ---------- Kartalar ---------- */
+main{padding:14px}
+.card{background:var(--card); border-radius:var(--r); padding:14px; margin-bottom:12px}
+.card.sel{outline:2px solid var(--accent); outline-offset:-2px}
+.hd{display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+.name{font-weight:650; font-size:16px; letter-spacing:-.2px}
+.meta{color:var(--hint); font-size:12.5px; margin-top:3px}
+
+/* progress */
+.pill{font:600 12px/1 inherit; padding:5px 10px; border-radius:20px; white-space:nowrap}
+.pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent); color:var(--ok)}
+.pill.mid{background:color-mix(in srgb,var(--warn) 18%,transparent); color:var(--warn)}
+.pill.low{background:color-mix(in srgb,var(--danger) 14%,transparent); color:var(--danger)}
+.bar{display:flex; gap:3px; margin:12px 0 10px}
+.bar i{flex:1; height:5px; border-radius:3px; background:var(--soft)}
+.bar i.f{background:var(--ok)}
+.tags{display:flex; flex-wrap:wrap; gap:5px}
+.tag{font:500 11px/1 inherit; padding:4px 8px; border-radius:7px; background:var(--soft); color:var(--hint)}
+.tag.has{background:color-mix(in srgb,var(--ok) 15%,transparent); color:var(--ok)}
+.tag.no{background:color-mix(in srgb,var(--danger) 12%,transparent); color:var(--danger)}
+
+/* boshqaruv */
+.acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+.btn{
+  border:0; border-radius:11px; padding:10px 15px; cursor:pointer;
+  font:600 13.5px/1 inherit; font-family:inherit;
+  background:var(--accent); color:var(--onacc); transition:opacity .15s;
+}
+.btn:active{opacity:.65}
+.btn.sm{padding:8px 12px; font-size:12.5px}
+.btn.ghost{background:var(--soft); color:var(--fg)}
+.btn.dngr{background:color-mix(in srgb,var(--danger) 14%,transparent); color:var(--danger)}
+input,select{
+  width:100%; padding:11px 12px; margin-top:7px; border-radius:11px;
+  border:1px solid var(--line); background:var(--bg); color:var(--fg);
+  font:inherit; font-size:14.5px;
+}
+input:focus,select:focus{outline:none; border-color:var(--accent)}
+label{font:500 11.5px/1 inherit; color:var(--hint); display:block; margin-top:12px;
+      text-transform:uppercase; letter-spacing:.4px}
+details{margin-top:10px}
+summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
+.flist{margin-top:8px; font-size:12.5px; color:var(--hint)}
+.flist div{padding:3px 0; border-bottom:1px solid var(--line)}
+.flist div:last-child{border:0}
+
+/* bo'sh holat */
+.empty{text-align:center; padding:56px 20px; color:var(--hint)}
+.empty .em{font-size:44px; display:block; margin-bottom:12px; opacity:.55}
+
+/* skelet */
+.sk{background:var(--card); border-radius:var(--r); height:104px; margin-bottom:12px;
+    animation:pulse 1.3s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.8}}
+
+/* tanlash */
+.pick{display:flex; align-items:center; gap:11px}
+.box{width:23px; height:23px; border-radius:7px; border:2px solid var(--line);
+     display:grid; place-items:center; flex:none; font-size:13px; color:transparent}
+.box.on{background:var(--accent); border-color:var(--accent); color:#fff}
+
+/* pastki panel */
+.dock{
+  position:fixed; left:12px; right:12px; bottom:12px; z-index:30;
+  background:var(--bg); border:1px solid var(--line); border-radius:var(--r);
+  padding:11px 13px; box-shadow:0 8px 28px rgba(0,0,0,.22);
+  transform:translateY(150%); transition:transform .22s cubic-bezier(.3,.9,.3,1);
+}
+.dock.up{transform:translateY(0)}
+.dock .cnt{font:600 13px/1 inherit; margin-bottom:9px}
+
+/* tarix */
+.ev{display:flex; gap:11px; padding:11px 0; border-bottom:1px solid var(--line)}
+.ev:last-child{border:0}
+.ev .i{font-size:17px; flex:none; width:24px; text-align:center}
+.ev .t{font-size:13.5px; line-height:1.4}
+.ev .w{color:var(--hint); font-size:11.5px; margin-top:2px}
+
+/* xabar */
+#toast{
+  position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(140px);
+  background:#1c1c1e; color:#fff; padding:12px 18px; border-radius:13px;
+  font-size:13.5px; z-index:60; max-width:88%; text-align:center;
+  box-shadow:0 6px 24px rgba(0,0,0,.3); transition:transform .24s;
+}
+#toast.on{transform:translateX(-50%) translateY(0)}
+#toast.bad{background:var(--danger)}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="tabs">
-    <button data-tab="batches" class="on">📦 Partiyalar<span class="badge" id="b-batches">0</span></button>
-    <button data-tab="customers">👥 Mijozlar<span class="badge" id="b-customers">0</span></button>
-    <button data-tab="unmatched">❓ Noaniq<span class="badge" id="b-unmatched">0</span></button>
-    <button data-tab="access">⚙️</button>
+<div class="top">
+  <div class="seg">
+    <button data-t="batches" class="on"><span class="ic">📦</span>Partiyalar<span class="n" id="n-batches">0</span></button>
+    <button data-t="customers"><span class="ic">👥</span>Mijozlar<span class="n" id="n-customers">0</span></button>
+    <button data-t="unmatched"><span class="ic">❓</span>Noaniq<span class="n" id="n-unmatched">0</span></button>
+    <button data-t="history"><span class="ic">🕘</span>Tarix<span class="n" id="n-history">0</span></button>
+    <button data-t="access"><span class="ic">⚙️</span>Sozlama<span class="n">&nbsp;</span></button>
   </div>
-</header>
+</div>
 
 <main>
-  <section id="tab-batches"></section>
-  <section id="tab-customers" hidden></section>
-  <section id="tab-unmatched" hidden></section>
-  <section id="tab-access" hidden></section>
+  <section id="p-batches"><div class="sk"></div><div class="sk"></div></section>
+  <section id="p-customers" hidden></section>
+  <section id="p-unmatched" hidden></section>
+  <section id="p-history" hidden></section>
+  <section id="p-access" hidden></section>
+  <div id="err" hidden></div>
 </main>
+
+<div class="dock" id="dock">
+  <div class="cnt" id="dock-n"></div>
+  <div class="acts" style="margin:0">
+    <select id="dock-batch" style="margin:0 0 8px"></select>
+    <button class="btn sm" onclick="bulkAttach()">📎 Biriktirish</button>
+    <button class="btn sm dngr" onclick="bulkDelete()">🗑 O'chirish</button>
+    <button class="btn sm ghost" onclick="clearPick()">Bekor</button>
+  </div>
+</div>
 
 <div id="toast"></div>
 
 <script>
-const tg = window.Telegram?.WebApp;
-let STATE = null;
+const tg = window.Telegram && window.Telegram.WebApp;
+let S = null;
+const picked = new Set();
 
-tg?.ready();
-tg?.expand();
+if (tg) { tg.ready(); tg.expand(); }
+
+const esc = v => String(v == null ? "" : v)
+  .replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function toast(msg, bad){
-  const t = document.getElementById('toast');
+  const t = document.getElementById("toast");
   t.textContent = msg;
-  t.className = 'show' + (bad ? ' bad' : '');
+  t.className = "on" + (bad ? " bad" : "");
   clearTimeout(t._h);
-  t._h = setTimeout(() => t.className = '', 3200);
+  t._h = setTimeout(() => { t.className = ""; }, 3000);
 }
-
-function haptic(type){ try{ tg.HapticFeedback.notificationOccurred(type); }catch(e){} }
+function buzz(kind){ try { tg.HapticFeedback.notificationOccurred(kind); } catch(e){} }
 
 async function api(path, body){
   const res = await fetch(path, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({initData: tg?.initData || '', ...body})
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(Object.assign({initData: (tg && tg.initData) || ""}, body))
   });
-  const data = await res.json().catch(() => ({error:'Server javobi tushunarsiz'}));
-  if(!res.ok) throw new Error(data.error || ('Xatolik ' + res.status));
+  let data = {};
+  try { data = await res.json(); } catch(e) { data = {error: "Server javobi tushunarsiz"}; }
+  if (!res.ok) throw new Error(data.error || ("Xatolik " + res.status));
   return data;
 }
 
+/* Xatoni ALOHIDA blokda ko'rsatamiz. Ilgari <main> ning ichi butunlay
+   almashtirilardi va bo'limlar yo'q bo'lib ketardi - bir marta xato
+   chiqsa, ilova boshqa hech qachon tiklanmasdi. */
+function showError(msg){
+  const err = document.getElementById("err");
+  ["batches","customers","unmatched","history","access"]
+    .forEach(k => { document.getElementById("p-" + k).hidden = true; });
+  err.innerHTML = '<div class="empty"><span class="em">⚠️</span>' + esc(msg)
+    + '<div class="acts" style="justify-content:center">'
+    + '<button class="btn" onclick="load()">Qayta urinish</button></div></div>';
+  err.hidden = false;
+}
+
 async function load(){
-  try{
-    STATE = await api('/api/state', {});
-    render();
-  }catch(e){
-    document.querySelector('main').innerHTML =
-      '<div class="empty">⚠️ ' + e.message + '</div>';
+  try {
+    S = await api("/api/state", {});
+    document.getElementById("err").hidden = true;
+    const on = document.querySelector(".seg button.on");
+    document.getElementById("p-" + (on ? on.dataset.t : "batches")).hidden = false;
+    draw();
+  } catch(e){
+    showError(e.message);
   }
 }
 
-async function act(action, data, confirmText){
-  if(confirmText && !confirm(confirmText)) return;
-  try{
-    const r = await api('/api/action', {action, data});
-    STATE = r; render();
-    toast(r.message || 'Bajarildi'); haptic('success');
-  }catch(e){
-    toast(e.message, true); haptic('error');
-  }
+async function act(action, data, ask){
+  if (ask && !confirm(ask)) return;
+  try {
+    const r = await api("/api/action", {action: action, data: data});
+    S = r; clearPick(); draw();
+    toast(r.message || "Bajarildi"); buzz("success");
+  } catch(e){ toast(e.message, true); buzz("error"); }
 }
 
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
-function render(){
-  if(!STATE) return;
-  for(const k of ['batches','customers','unmatched'])
-    document.getElementById('b-' + k).textContent = STATE[k].length;
-  renderBatches(); renderCustomers(); renderUnmatched(); renderAccess();
+/* ---------- chizish ---------- */
+function draw(){
+  if (!S) return;
+  ["batches","customers","unmatched","history"].forEach(k => {
+    document.getElementById("n-" + k).textContent = (S[k] || []).length;
+  });
+  drawBatches(); drawCustomers(); drawUnmatched(); drawHistory(); drawAccess();
+  syncDock();
 }
 
-function renderBatches(){
-  const el = document.getElementById('tab-batches');
-  if(!STATE.batches.length){
-    el.innerHTML = '<div class="empty">Kutilayotgan partiya yo\'q.<br>Guruhga hujjat tashlang.</div>';
+function drawBatches(){
+  const el = document.getElementById("p-batches");
+  if (!S.batches.length){
+    el.innerHTML = '<div class="empty"><span class="em">📦</span>'
+      + "Kutilayotgan partiya yo'q.<br>Guruhga hujjat tashlang.</div>";
     return;
   }
-  const names = STATE.customers.map(c => c.name);
-  el.innerHTML = STATE.batches.map(b => {
-    const full = b.missing.length === 0;
-    const chips = STATE.required.map(t => {
+  const names = S.customers.map(c => c.name);
+  el.innerHTML = S.batches.map(b => {
+    const done = S.required.length - b.missing.length;
+    const cls  = b.missing.length === 0 ? "ok" : (done >= 4 ? "mid" : "low");
+    const bar  = S.required.map(t =>
+      '<i class="' + (b.missing.includes(t) ? "" : "f") + '"></i>').join("");
+    const tags = S.required.map(t => {
       const has = !b.missing.includes(t);
-      return `<span class="chip ${has?'ok':'miss'}">${has?'✓':'✗'} ${t}</span>`;
-    }).join('');
+      return '<span class="tag ' + (has ? "has" : "no") + '">' + (has ? "✓" : "✗") + " " + t + "</span>";
+    }).join("");
     const opts = names.map(n =>
-      `<option value="${esc(n)}" ${n===b.customer?'selected':''}>${esc(n)}</option>`).join('');
+      '<option value="' + esc(n) + '"' + (n === b.customer ? " selected" : "") + ">" + esc(n) + "</option>").join("");
     const files = b.files.map(f =>
-      `<div>• ${esc(f.type||'—')} — ${esc(f.name)}</div>`).join('');
-    return `<div class="card">
-      <div class="row">
-        <div>
-          <div class="title">${esc(b.display)}</div>
-          <div class="sub">${b.customer ? esc(b.customer) : '❓ mijoz belgilanmagan'}
-            ${b.truck ? ' · fura ' + esc(b.truck) : ''}
-            · ${b.file_count} fayl · ${b.age_hours} soat</div>
-        </div>
-        <div class="chip ${full?'ok':'miss'}">${b.progress}</div>
-      </div>
-      <div class="chips">${chips}</div>
-      <details><summary>Fayllar (${b.file_count})</summary><div class="files">${files}</div></details>
-      <label>Mijoz</label>
-      <select onchange="act('batch_assign',{code:'${esc(b.code)}',name:this.value})">
-        <option value="">— tanlang —</option>${opts}
-      </select>
-      <div class="acts">
-        <button class="act" onclick="act('batch_send',{code:'${esc(b.code)}'},
-          ${full ? "'Pochtaga yuborilsinmi?'" : "'⚠️ Komplekt TO\\'LIQ EMAS. Baribir yuborilsinmi?'"})">
-          📤 Yuborish</button>
-        <button class="act danger" onclick="act('batch_cancel',{code:'${esc(b.code)}'},
-          'Bekor qilinsinmi? Fayllar o\\'chiriladi.')">🗑 Bekor</button>
-      </div>
-    </div>`;
-  }).join('');
+      "<div>" + esc(f.type || "—") + " · " + esc(f.name) + "</div>").join("");
+    const full = b.missing.length === 0;
+    const ask  = full ? "Pochtaga yuborilsinmi?"
+                      : "Komplekt TO'LIQ EMAS. Baribir yuborilsinmi?";
+    return '<div class="card">'
+      + '<div class="hd"><div>'
+      +   '<div class="name">' + esc(b.display) + "</div>"
+      +   '<div class="meta">' + (b.customer ? esc(b.customer) : "❓ mijoz belgilanmagan")
+      +     (b.truck ? " · fura " + esc(b.truck) : "")
+      +     " · " + b.file_count + " fayl · " + b.age_hours + " soat</div>"
+      + '</div><span class="pill ' + cls + '">' + esc(b.progress) + "</span></div>"
+      + '<div class="bar">' + bar + "</div>"
+      + '<div class="tags">' + tags + "</div>"
+      + "<details><summary>Fayllar (" + b.file_count + ")</summary>"
+      +   '<div class="flist">' + files + "</div></details>"
+      + "<label>Mijoz</label>"
+      + "<select onchange=\"act('batch_assign',{code:'" + esc(b.code) + "',name:this.value})\">"
+      +   '<option value="">— tanlang —</option>' + opts + "</select>"
+      + '<div class="acts">'
+      +   '<button class="btn" onclick="act(\'batch_send\',{code:\'' + esc(b.code) + "'},'" + ask + "')\">📤 Yuborish</button>"
+      +   '<button class="btn dngr" onclick="act(\'batch_cancel\',{code:\'' + esc(b.code) + "'},'Bekor qilinsinmi? Fayllar o‘chiriladi.')\">🗑</button>"
+      + "</div></div>";
+  }).join("");
 }
 
-function renderCustomers(){
-  const el = document.getElementById('tab-customers');
-  const list = STATE.customers.map(c => `<div class="card">
-    <div class="title">${esc(c.name)}</div>
-    <div class="sub">${esc(c.emails.join(', ')) || '⚠️ email yo\'q'}</div>
-    <div class="chips">
-      ${c.prefixes.map(p => `<span class="chip">🔗 ${esc(p)}</span>`).join('')}
-      ${c.aliases.map(a => `<span class="chip">🔤 ${esc(a)}</span>`).join('')}
-    </div>
-    <div class="acts">
-      <button class="act ghost" onclick="addPrefix('${esc(c.name)}')">+ Prefiks</button>
-      <button class="act ghost" onclick="addAlias('${esc(c.name)}')">+ Alias</button>
-      <button class="act danger" onclick="act('customer_remove',{name:'${esc(c.name)}'},
-        'Mijoz o\\'chirilsinmi?')">🗑</button>
-    </div>
-  </div>`).join('');
+function drawCustomers(){
+  const el = document.getElementById("p-customers");
+  const list = S.customers.map(c =>
+    '<div class="card">'
+    + '<div class="name">' + esc(c.name) + "</div>"
+    + '<div class="meta">' + (esc(c.emails.join(", ")) || "⚠️ email yo‘q") + "</div>"
+    + '<div class="tags" style="margin-top:9px">'
+    +   c.prefixes.map(p => '<span class="tag has">🔗 ' + esc(p) + "</span>").join("")
+    +   c.aliases.map(a => '<span class="tag">🔤 ' + esc(a) + "</span>").join("")
+    + "</div>"
+    + '<div class="acts">'
+    +   '<button class="btn sm ghost" onclick="askPrefix(\'' + esc(c.name) + '\')">+ Prefiks</button>'
+    +   '<button class="btn sm ghost" onclick="askAlias(\'' + esc(c.name) + '\')">+ Alias</button>'
+    +   '<button class="btn sm dngr" onclick="act(\'customer_remove\',{name:\'' + esc(c.name) + "'},'Mijoz o‘chirilsinmi?')\">🗑</button>"
+    + "</div></div>").join("");
 
-  el.innerHTML = list + `<div class="card">
-    <div class="title">➕ Yangi mijoz</div>
-    <label>Nomi</label><input id="nc-name" placeholder="GALLAKTIKA">
-    <label>Email (vergul bilan)</label><input id="nc-mail" placeholder="a@b.com, c@d.com">
-    <div class="acts"><button class="act" onclick="addCustomer()">Saqlash</button></div>
-  </div>`;
+  el.innerHTML = list
+    + '<div class="card"><div class="name">➕ Yangi mijoz</div>'
+    + "<label>Nomi</label><input id=\"c-name\" placeholder=\"GALLAKTIKA\">"
+    + "<label>Email (vergul bilan)</label><input id=\"c-mail\" placeholder=\"a@b.com, c@d.com\">"
+    + '<div class="acts"><button class="btn" onclick="addCustomer()">Saqlash</button></div></div>';
 }
 
-function renderUnmatched(){
-  const el = document.getElementById('tab-unmatched');
-  if(!STATE.unmatched.length){
-    el.innerHTML = '<div class="empty">Noaniq fayllar yo\'q 👍</div>';
+function drawUnmatched(){
+  const el = document.getElementById("p-unmatched");
+  if (!S.unmatched.length){
+    el.innerHTML = '<div class="empty"><span class="em">✨</span>Noaniq fayllar yo‘q.</div>';
     return;
   }
-  const codes = STATE.batches.map(b =>
-    `<option value="${esc(b.code)}">${esc(b.display)}</option>`).join('');
-  el.innerHTML = STATE.unmatched.map(u => `<div class="card">
-    <div class="title">${esc(u.filename)}</div>
-    <div class="sub">${u.id} · ${u.age_hours} soat oldin</div>
-    <label>Partiyaga biriktirish</label>
-    <select onchange="if(this.value) act('unmatched_attach',{id:'${esc(u.id)}',code:this.value})">
-      <option value="">— tanlang —</option>${codes}
-    </select>
-    <div class="acts">
-      <button class="act danger" onclick="act('unmatched_delete',{id:'${esc(u.id)}'},
-        'Fayl o\\'chirilsinmi?')">🗑 O'chirish</button>
-    </div>
-  </div>`).join('');
+  const head = '<div class="card"><div class="pick" onclick="pickAll()">'
+    + '<div class="box ' + (picked.size === S.unmatched.length ? "on" : "") + '">✓</div>'
+    + "<div><div class=\"name\" style=\"font-size:14px\">Hammasini tanlash</div>"
+    + '<div class="meta">' + S.unmatched.length + " ta fayl</div></div></div></div>";
+
+  el.innerHTML = head + S.unmatched.map(u =>
+    '<div class="card ' + (picked.has(u.id) ? "sel" : "") + '" onclick="pick(\'' + esc(u.id) + '\')">'
+    + '<div class="pick">'
+    +   '<div class="box ' + (picked.has(u.id) ? "on" : "") + '">✓</div>'
+    +   "<div><div class=\"name\" style=\"font-size:14px\">" + esc(u.filename) + "</div>"
+    +   '<div class="meta">' + esc(u.id) + " · " + u.age_hours + " soat oldin</div></div>"
+    + "</div></div>").join("");
 }
 
-function renderAccess(){
-  const el = document.getElementById('tab-access');
-  const groups = STATE.groups.map(g => `<div class="card">
-    <div class="title">${esc(g.title) || '(nomsiz guruh)'}</div>
-    <div class="sub">${esc(g.id)}</div>
-    <div class="acts">
-      <button class="act danger" onclick="act('group_remove',{id:'${esc(g.id)}'},
-        'Guruh olib tashlansinmi? Undan hujjat qabul qilinmaydi.')">🗑 Olib tashlash</button>
-    </div>
-  </div>`).join('') || `<div class="card sub">Ro'yxat bo'sh — bot barcha guruhlardan qabul qiladi.</div>`;
-
-  const admins = STATE.admins.map(a => `<div class="card">
-    <div class="title">${esc(a.name) || '(ismsiz)'}</div>
-    <div class="sub">${esc(a.id)}</div>
-    <div class="acts">
-      <button class="act danger" onclick="act('admin_remove',{id:'${esc(a.id)}'},
-        'Admin huquqi olib tashlansinmi?')">🗑 Olib tashlash</button>
-    </div>
-  </div>`).join('') || `<div class="card sub">Qo'shimcha admin yo'q.</div>`;
-
-  el.innerHTML = `
-    <div class="card"><div class="title">📢 Guruhlar</div>
-      <div class="sub">Bot faqat shu guruhlardan hujjat qabul qiladi.
-      Yangi guruh qo'shish uchun o'sha guruhda <b>/group_add</b> deb yozing.</div></div>
-    ${groups}
-    <div class="card"><div class="title">👤 Adminlar</div>
-      <div class="sub">Egasi: ${esc(STATE.owner)} — o'chirib bo'lmaydi.<br>
-      ID ni bilish uchun o'sha odam botga <b>/myid</b> yozsin.</div></div>
-    ${admins}
-    <div class="card">
-      <div class="title">➕ Admin qo'shish</div>
-      <label>Telegram ID</label><input id="na-id" inputmode="numeric" placeholder="123456789">
-      <label>Ism (ixtiyoriy)</label><input id="na-name" placeholder="Aziz">
-      <div class="acts"><button class="act" onclick="addAdmin()">Qo'shish</button></div>
-    </div>`;
+function drawHistory(){
+  const el = document.getElementById("p-history");
+  if (!S.history || !S.history.length){
+    el.innerHTML = '<div class="empty"><span class="em">🕘</span>Tarix bo‘sh.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="card">' + S.history.map(h =>
+    '<div class="ev"><div class="i">' + esc(h.icon) + "</div><div>"
+    + '<div class="t">' + esc(h.text) + "</div>"
+    + '<div class="w">' + when(h.at) + (h.who ? " · " + esc(h.who) : "") + "</div>"
+    + "</div></div>").join("") + "</div>";
 }
 
-function addAdmin(){
-  const id = document.getElementById('na-id').value.trim();
-  const name = document.getElementById('na-name').value.trim();
-  if(!id){ toast('ID kiriting', true); return; }
-  act('admin_add', {id, name});
+function when(ts){
+  const d = new Date(ts * 1000), now = Date.now() / 1000;
+  const diff = now - ts;
+  if (diff < 60) return "hozir";
+  if (diff < 3600) return Math.floor(diff / 60) + " daqiqa oldin";
+  if (diff < 86400) return Math.floor(diff / 3600) + " soat oldin";
+  return d.toLocaleDateString("uz-UZ") + " " + d.toTimeString().slice(0, 5);
 }
 
+function drawAccess(){
+  const el = document.getElementById("p-access");
+  const groups = S.groups.length
+    ? S.groups.map(g => '<div class="card">'
+        + '<div class="name" style="font-size:14.5px">' + (esc(g.title) || "(nomsiz)") + "</div>"
+        + '<div class="meta">' + esc(g.id) + "</div>"
+        + '<div class="acts"><button class="btn sm dngr" onclick="act(\'group_remove\',{id:\''
+        + esc(g.id) + "'},'Guruh olib tashlansinmi?')\">🗑 Olib tashlash</button></div></div>").join("")
+    : '<div class="card"><div class="meta">Ro‘yxat bo‘sh — bot barcha guruhlardan qabul qiladi.</div></div>';
+
+  const admins = S.admins.length
+    ? S.admins.map(a => '<div class="card">'
+        + '<div class="name" style="font-size:14.5px">' + (esc(a.name) || "(ismsiz)") + "</div>"
+        + '<div class="meta">' + esc(a.id) + "</div>"
+        + '<div class="acts"><button class="btn sm dngr" onclick="act(\'admin_remove\',{id:\''
+        + esc(a.id) + "'},'Admin huquqi olib tashlansinmi?')\">🗑 Olib tashlash</button></div></div>").join("")
+    : '<div class="card"><div class="meta">Qo‘shimcha admin yo‘q.</div></div>';
+
+  el.innerHTML =
+      '<div class="card"><div class="name">📢 Guruhlar</div>'
+    + '<div class="meta">Bot faqat shu guruhlardan hujjat oladi. Yangisini qo‘shish uchun '
+    + "o‘sha guruhda <b>/group_add</b> yozing.</div></div>" + groups
+    + '<div class="card"><div class="name">👤 Adminlar</div>'
+    + '<div class="meta">Egasi: ' + esc(S.owner) + " — o‘chirib bo‘lmaydi.<br>"
+    + "ID ni bilish uchun o‘sha odam botga <b>/myid</b> yozsin.</div></div>" + admins
+    + '<div class="card"><div class="name">➕ Admin qo‘shish</div>'
+    + "<label>Telegram ID</label><input id=\"a-id\" inputmode=\"numeric\" placeholder=\"123456789\">"
+    + "<label>Ism</label><input id=\"a-name\" placeholder=\"Aziz\">"
+    + '<div class="acts"><button class="btn" onclick="addAdmin()">Qo‘shish</button></div></div>';
+}
+
+/* ---------- tanlash ---------- */
+function pick(id){
+  picked.has(id) ? picked.delete(id) : picked.add(id);
+  drawUnmatched(); syncDock();
+}
+function pickAll(){
+  if (picked.size === S.unmatched.length) picked.clear();
+  else S.unmatched.forEach(u => picked.add(u.id));
+  drawUnmatched(); syncDock();
+}
+function clearPick(){ picked.clear(); drawUnmatched && S && drawUnmatched(); syncDock(); }
+
+function syncDock(){
+  const d = document.getElementById("dock");
+  if (!S || !picked.size){ d.className = "dock"; return; }
+  document.getElementById("dock-n").textContent = picked.size + " ta fayl tanlandi";
+  document.getElementById("dock-batch").innerHTML =
+    '<option value="">— partiyani tanlang —</option>'
+    + S.batches.map(b => '<option value="' + esc(b.code) + '">' + esc(b.display) + "</option>").join("");
+  d.className = "dock up";
+}
+function bulkAttach(){
+  const code = document.getElementById("dock-batch").value;
+  if (!code){ toast("Partiyani tanlang", true); return; }
+  act("unmatched_bulk", {ids: [...picked], code: code});
+}
+function bulkDelete(){
+  act("unmatched_bulk", {ids: [...picked], mode: "delete"}, picked.size + " ta fayl o‘chirilsinmi?");
+}
+
+/* ---------- formalar ---------- */
 function addCustomer(){
-  const name = document.getElementById('nc-name').value.trim();
-  const emails = document.getElementById('nc-mail').value.trim();
-  if(!name || !emails){ toast('Nom va email kiriting', true); return; }
-  act('customer_add', {name, emails});
+  const name = document.getElementById("c-name").value.trim();
+  const emails = document.getElementById("c-mail").value.trim();
+  if (!name || !emails){ toast("Nom va email kiriting", true); return; }
+  act("customer_add", {name: name, emails: emails});
 }
-function addPrefix(name){
-  const p = prompt('Prefiks (masalan NGS):'); if(p) act('prefix_add', {name, prefix:p});
+function addAdmin(){
+  const id = document.getElementById("a-id").value.trim();
+  if (!id){ toast("ID kiriting", true); return; }
+  act("admin_add", {id: id, name: document.getElementById("a-name").value.trim()});
 }
-function addAlias(name){
-  const a = prompt('Alias (muqobil nom):'); if(a) act('alias_add', {name, alias:a});
+function askPrefix(name){
+  const p = prompt("Prefiks (masalan NGS):");
+  if (p) act("prefix_add", {name: name, prefix: p});
+}
+function askAlias(name){
+  const a = prompt("Alias (muqobil nom):");
+  if (a) act("alias_add", {name: name, alias: a});
 }
 
-document.querySelectorAll('.tabs button').forEach(btn => {
+/* ---------- bo'limlar ---------- */
+document.querySelectorAll(".seg button").forEach(btn => {
   btn.onclick = () => {
-    document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('on'));
-    btn.classList.add('on');
-    for(const k of ['batches','customers','unmatched','access'])
-      document.getElementById('tab-' + k).hidden = (k !== btn.dataset.tab);
+    document.querySelectorAll(".seg button").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    ["batches","customers","unmatched","history","access"].forEach(k => {
+      document.getElementById("p-" + k).hidden = (k !== btn.dataset.t);
+    });
+    window.scrollTo(0, 0);
   };
 });
 

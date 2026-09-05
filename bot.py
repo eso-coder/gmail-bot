@@ -33,6 +33,7 @@ import customer_store
 import declaration
 import doc_types
 import gmail_sender
+import history_store
 import sent_store
 import session_store
 import storage
@@ -1543,7 +1544,14 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         # Tarixga yozamiz - shu fayllar qayta tashlansa, bot "bular
         # allaqachon yuborilgan, qayta yuborilsinmi?" deb so'raydi
         sent_store.record(code, display_code, customer_name, ok, ordered)
+        history_store.add(
+            "batch_sent",
+            f"{display_code} → {customer_name} · {len(file_names)} fayl"
+            + (f" · fura {truck_full}" if truck_full else ""),
+        )
         batch_store.clear_batch(code)
+    else:
+        history_store.add("batch_failed", f"{display_code} → {customer_name}: yuborilmadi")
     logger.info("%s -> %s: yuborildi=%s, xato=%s", code, customer_name, ok, failed)
 
 
@@ -1629,6 +1637,7 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     old_name = old.get("filename", "?")
     logger.info("Tahrirlangan hujjat yangilandi: %s -> %s (%s)", old_name, name, code)
+    history_store.add("doc_edited", f"{code}: {old_name} yangilandi")
 
     batch = batch_store.get_batch(code)
     text = f"✏️ Hujjat yangilandi: {old_name}"
