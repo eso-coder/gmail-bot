@@ -134,9 +134,13 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
 }
 #sheet .grip{width:38px; height:4px; border-radius:3px; background:var(--line);
              margin:0 auto 14px}
+/* label ham .row bo'lishi mumkin (fayl yuklash), shuning uchun umumiy
+   label uslubini (katta harf, margin) shu yerda bekor qilamiz */
 .row{display:flex; align-items:center; gap:11px; width:100%; text-align:left;
      background:var(--card); border:0; border-radius:12px; padding:12px;
-     margin-bottom:8px; color:var(--fg); font:inherit; cursor:pointer}
+     margin:0 0 8px; color:var(--fg); font:inherit; font-size:14px;
+     text-transform:none; letter-spacing:normal; cursor:pointer}
+.row .meta{text-transform:none; letter-spacing:normal}
 .row:active{opacity:.6}
 .row .em{font-size:19px; flex:none}
 
@@ -324,21 +328,66 @@ function drawBatches(){
   }).join("");
 }
 
-/* Yetishmagan hujjat ustiga bosilganda: noaniq fayllardan birini tanlab,
-   AYNAN shu tur sifatida partiyaga biriktirish */
+/* Yetishmagan hujjat ustiga bosilganda ikki yo'l taklif qilinadi:
+   1) telefondan faylni to'g'ridan-to'g'ri yuklash;
+   2) "noaniq fayllar" ro'yxatidan birini tanlash (agar ular bo'lsa).
+   Ilgari faqat ikkinchisi bor edi va ro'yxat bo'sh bo'lsa hech narsa
+   qilib bo'lmasdi - shuning uchun funksiya "ishlamayapti" ko'rinardi. */
 function openAttach(code, type){
-  if (!S.unmatched.length){
-    toast("Ноаниқ файллар йўқ — аввал ҳужжатни гуруҳга ташланг", true);
+  const upload =
+      '<label class="row"><span class="em">📤</span><span>'
+    + "<b>Телефондан файл юклаш</b>"
+    + '<div class="meta">Расм, PDF ёки хужжат — макс. 25 MB</div></span>'
+    + '<input type="file" hidden onchange="uploadFile(this,\'' + js(code)
+    + "','" + type + "')\"></label>";
+
+  const rows = S.unmatched.length
+    ? '<div class="meta" style="margin:16px 0 8px">Ёки ноаниқ файллардан танланг:</div>'
+      + S.unmatched.map(u =>
+          '<button class="row" onclick="act(\'unmatched_attach\',{id:\'' + js(u.id)
+          + "',code:'" + js(code) + "',type:'" + type + "'})\">"
+          + '<span class="em">📄</span><span><b>' + esc(u.filename) + "</b>"
+          + '<div class="meta">' + esc(u.id) + " · " + u.age_hours
+          + " соат олдин</div></span></button>").join("")
+    : "";
+
+  showSheet('<div class="name">' + type + " ҳужжатини қўшиш</div>"
+    + '<div class="meta" style="margin-bottom:14px">Партия: ' + esc(code) + "</div>"
+    + upload + rows);
+}
+
+async function uploadFile(input, code, type){
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024){
+    toast("Файл жуда катта (макс. 25 MB)", true);
     return;
   }
-  const rows = S.unmatched.map(u =>
-    '<button class="row" onclick="act(\'unmatched_attach\',{id:\'' + js(u.id)
-    + "',code:'" + js(code) + "',type:'" + type + "'})\">"
-    + '<span class="em">📄</span><span><b>' + esc(u.filename) + "</b>"
-    + '<div class="meta">' + esc(u.id) + " · " + u.age_hours + " соат олдин</div></span></button>").join("");
-  showSheet('<div class="name">' + type + " сифатида бириктириш</div>"
-    + '<div class="meta" style="margin-bottom:14px">' + esc(code)
-    + " партиясига қайси файл қўшилсин?</div>" + rows);
+  const label = input.parentElement;
+  label.style.opacity = ".5";
+  label.querySelector("b").textContent = "Юкланмоқда…";
+  try {
+    const fd = new FormData();
+    fd.append("initData", (tg && tg.initData) || "");
+    fd.append("code", code);
+    fd.append("type", type);
+    fd.append("file", file, file.name);
+    const res = await fetch("/api/upload", {method: "POST", body: fd});
+    let data = {};
+    try { data = await res.json(); } catch(e){ data = {}; }
+    if (!res.ok){
+      // 413 kabi javoblar JSON emas - shunda tushunarli matn chiqaramiz
+      throw new Error(data.error
+        || (res.status === 413 ? "Файл жуда катта" : "Хатолик " + res.status));
+    }
+    S = data; closeSheet(); draw();
+    toast(data.message || "Қўшилди"); buzz("success");
+  } catch(e){
+    label.style.opacity = "";
+    label.querySelector("b").textContent = "Телефондан файл юклаш";
+    input.value = "";
+    toast(e.message, true); buzz("error");
+  }
 }
 
 function showSheet(html){

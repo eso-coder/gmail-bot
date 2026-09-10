@@ -870,6 +870,55 @@ def _attach_unmatched(entry_id: str, code: str, force_type: str = None):
     return entry
 
 
+def _save_upload(code: str, filename: str, data: bytes, force_type: str = None):
+    """
+    Mini App orqali telefondan yuklangan faylni partiyaga qo'shadi.
+
+    Bu "noaniq fayllar"dan biriktirishga qo'shimcha yo'l: ba'zan yetishmagan
+    hujjat umuman guruhga tushmagan bo'ladi (yoki nomi shunchalik xato
+    yozilganki, bot uni ko'rmagan) - o'shanda uni to'g'ridan-to'g'ri
+    telefondan yuklash mumkin.
+
+    Qaytaradi: (saqlangan_nom, tur) yoki (None, xato_matni)
+    """
+    batch = batch_store.get_batch(code)
+    if not batch:
+        return None, "Партия топилмади"
+    if not data:
+        return None, "Файл бўш"
+
+    uid = "upload:" + hashlib.md5(data).hexdigest()
+    if batch_store.is_duplicate(code, uid):
+        return None, "Бу файл аллақачон қўшилган"
+
+    name = safe_filename(filename or "hujjat")
+    local_dir = os.path.join(DOWNLOAD_DIR, code)
+    os.makedirs(local_dir, exist_ok=True)
+    path = unique_path(local_dir, name)
+    with open(path, "wb") as fh:
+        fh.write(data)
+
+    # Turini nomidan aniqlashga harakat qilamiz; admin tur ko'rsatgan
+    # bo'lsa (yetishmagan hujjat ustiga bosgan) - o'shanisi ustun.
+    doc_type, truck = (None, None)
+    parsed = session_store.parse(name)
+    if parsed:
+        doc_type, truck = doc_types.detect(parsed["remainder"], parsed["extension"])
+        if parsed["is_declaration"]:
+            doc_type = "DEKL"
+    doc_type = force_type or doc_type or "MANUAL"
+
+    # Fayl DISKDA tayyor turibdi, shuning uchun `path` darhol yoziladi -
+    # yuborish paytida uni Telegram'dan yuklab olish shart emas.
+    batch_store.add_file(
+        code, os.path.basename(path), path, file_unique_id=uid,
+        customer=batch.get("customer"), doc_type=doc_type, truck=truck,
+    )
+    logger.info("Mini App'dan fayl yuklandi: %s -> %s (%s)",
+                os.path.basename(path), code, doc_type)
+    return os.path.basename(path), doc_type
+
+
 @private_only
 async def batch_attach_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Format: /batch_attach KOD | ID  (masalan /batch_attach NO336 | u1)"""
@@ -1552,20 +1601,17 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
 
     # Fayllar ro'yxati - guruhlangan, o'qish qulay ko'rinishda
     file_list = doc_types.format_files(ordered)
-    truck_part = f"Fura {batch.get('truck')} · " if batch.get("truck") else ""
+    truck_part = f"Фура {batch.get('truck')} · " if batch.get("truck") else ""
     missing_docs = doc_types.missing_types(ordered)
 
-    # Guruhga - email manzillarini oshkor qilmasdan, faqat holat
+    # Guruhga - QISQA xabar. Fayllar ro'yxati va email manzillari faqat
+    # admin'ning shaxsiy chatiga boradi; guruhda ortiqcha matn kerak emas.
     if ok:
-        group_summary = (
-            f"✅ \"{display_code}\" — почтага юборилди\n"
-            f"📦 {truck_part}{len(file_names)} та файл · комплект {doc_types.progress_line(ordered)}\n\n"
-            f"{file_list}"
-        )
+        group_summary = f"✅ {display_code} — Почтага юборилди"
         if failed:
-            group_summary += f"\n\n⚠️ {len(failed)} та манзилга юборилмади, админ хабардор қилинди."
+            group_summary += "\n⚠️ Баъзи манзилларга йетмади, админ хабардор қилинди."
     else:
-        group_summary = (f"❌ \"{display_code}\" почтага ЮБОРИЛМАДИ.\n"
+        group_summary = (f"❌ {display_code} — почтага ЮБОРИЛМАДИ.\n"
                          f"Файллар сақланиб турибди, админ хабардор қилинди.")
 
     # Admin'ga shaxsiy - to'liq tafsilot, email manzillari va xatolik sababi bilan
@@ -1799,6 +1845,10 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     if not parsed:
         # Kod umuman topilmadi (oddiy suhbat, skrinshot, pasport nusxasi ва ҳ.к.)
         # - bunga botning aloqasi yo'q, butunlay e'tiborsiz qoldiramiz.
+        #
+        # Bu ham logga yoziladi: "hujjat tashladim, bot olmadi" degan holatda
+        # aynan qaysi fayl nomi tanilmaganini ko'rish uchun yagona yo'l shu.
+        logger.info("KO'RILDI: %r -> kod topilmadi, e'tiborsiz", filename)
         return
 
     code = parsed["code"]
@@ -1807,6 +1857,8 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     doc_type, truck = doc_types.detect(parsed["remainder"], parsed["extension"])
     if is_declaration:
         doc_type = "DEKL"
+
+    logger.info("KO'RILDI: %r -> kod=%s tur=%s fura=%s", filename, code, doc_type, truck)
 
     # ---- 0. Bu bizning hujjatimizmi? ----
     # Guruhga chek, pasport nusxasi, haydovchi rasmi kabi begona fayllar ham
@@ -2352,6 +2404,7 @@ async def _start_webapp(app: Application):
     app.bot_data["webapp_runner"] = await webapp.start({
         "send_batch": send_batch,
         "attach_unmatched": _attach_unmatched,
+        "save_upload": _save_upload,
     })
 
 

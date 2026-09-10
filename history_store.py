@@ -35,6 +35,7 @@ ICONS = {
     "alias_remove": "🔤",
     "customer_update": "✏️",
     "unmatched_attach": "📎",
+    "upload": "📤",
     "unmatched_delete": "🗑",
     "admin_add": "👑",
     "admin_remove": "👑",

@@ -65,10 +65,17 @@ KEYWORDS = {
     # Invoys
     "INV": "INV", "INVOICE": "INV", "INVOYS": "INV", "INVOIS": "INV",
     "ИНВ": "INV", "ИНВОЙС": "INV",
-    # Spetsifikatsiya
+    # Spetsifikatsiya.
+    # Hodimlar buni juda xilma-xil yozadi ("SPES", "SPS", "UPAK"), shu sabab
+    # bot ba'zan spetsifikatsiyani ko'rmay, uni yetishmayapti deb hisoblardi.
     "SPETS": "SPETS", "SPEC": "SPETS", "SPECS": "SPETS", "SPETC": "SPETS",
+    "SPES": "SPETS", "SPS": "SPETS", "SPC": "SPETS", "SPETSIF": "SPETS",
     "SPETSIFIKATSIYA": "SPETS", "SPECIFIKATSIYA": "SPETS",
-    "СПЕЦ": "SPETS", "СПЕЦИФИКАЦИЯ": "SPETS",
+    "SPESIFIKATSIYA": "SPETS", "SPETSIFIKATSIA": "SPETS",
+    "СПЕЦ": "SPETS", "СПЕЦИФИКАЦИЯ": "SPETS", "СПЕЦИФИКАЦИЯСИ": "SPETS",
+    # Qadoqlash varaqasi — amalda spetsifikatsiya bilan bir hujjat
+    "UPAK": "SPETS", "UPAKOVKA": "SPETS", "PACKING": "SPETS", "PL": "SPETS",
+    "УПАК": "SPETS", "УПАКОВКА": "SPETS", "УПАКОВОЧНЫЙ": "SPETS",
     # Sertifikat
     "ST": "ST", "СТ": "ST", "SERT": "ST", "SERTIFIKAT": "ST",
     "CERT": "ST", "CERTIFICATE": "ST",
@@ -92,6 +99,18 @@ def _tokens(text: str) -> list:
     return [t for t in _TOKEN_SPLIT.split(text or "") if t]
 
 
+# Kirill va lotin alifbosida bir xil ko'rinadigan harflar. Klaviatura
+# almashtirilganda "ST" o'rniga lotin S + kirill Т yozilib qolishi mumkin -
+# ko'zga bilinmaydi, lekin bot hujjatni tanimay qolardi.
+_LOOKALIKE = str.maketrans("АВСЕНКМОРТХУЁІЈ", "ABCEHKMOPTXYEIJ")
+
+
+def _keyword(token: str):
+    """Token qaysi hujjat turiga tegishli - kirill/lotin aralashini ham hisobga oladi."""
+    upper = token.upper()
+    return KEYWORDS.get(upper) or KEYWORDS.get(upper.translate(_LOOKALIKE))
+
+
 def detect(remainder: str, extension: str = ""):
     """
     Fayl nomining kod'dan tashqari qismidan hujjat turini va fura raqamini
@@ -103,11 +122,11 @@ def detect(remainder: str, extension: str = ""):
     truck = None
 
     for token in _tokens(remainder):
-        upper = token.upper()
-        if upper in KEYWORDS:
+        found = _keyword(token)
+        if found:
             # Birinchi topilgan tur ustun (fayl nomida bittadan ko'p bo'lmaydi)
             if doc_type is None:
-                doc_type = KEYWORDS[upper]
+                doc_type = found
         elif token.isdigit():
             # Fura raqami odatda oxirida turadi - oxirgisini olamiz
             truck = token

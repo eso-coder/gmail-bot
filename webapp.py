@@ -42,6 +42,13 @@ LISTEN_PORT = 8080
 # initData shuncha soniyadan eski bo'lsa, qabul qilinmaydi (takroriy hujumdan himoya)
 MAX_AUTH_AGE = 24 * 3600
 
+# Mini App orqali yuklanadigan faylning eng katta hajmi (foydalanuvchiga
+# aytiladigan chegara). Serverdagi chegara biroz kattaroq qilinadi - aks
+# holda 25 MB lik fayl multipart "o'ram"i bilan birga chegaradan oshib
+# ketib, aiohttp o'zining tushunarsiz 413 xatosini qaytarardi.
+MAX_UPLOAD_MB = 25
+BODY_LIMIT_MB = MAX_UPLOAD_MB + 5
+
 
 def _check_init_data(init_data: str):
     """
@@ -317,10 +324,12 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
 def create_app(ctx) -> web.Application:
     """
     ctx - bot funksiyalari:
-        send_batch(code)          - async, partiyani yuboradi
-        attach_unmatched(id, code)- sync, noaniq faylni biriktiradi
+        send_batch(code)                     - async, partiyani yuboradi
+        attach_unmatched(id, code, type)     - sync, noaniq faylni biriktiradi
+        save_upload(code, name, data, type)  - sync, yuklangan faylni qo'shadi
     """
-    app = web.Application()
+    # Standart chegara 1 MB - skanerlangan hujjat undan katta bo'ladi
+    app = web.Application(client_max_size=BODY_LIMIT_MB * 1024 * 1024)
 
     async def index(request):
         path = os.path.join(WEB_DIR, "index.html")
@@ -365,9 +374,55 @@ def create_app(ctx) -> web.Application:
         result.update(_collect_state())
         return web.json_response(result)
 
+    async def api_upload(request):
+        """
+        Telefondan fayl yuklash (Mini App'da yetishmagan hujjat ustiga
+        bosilganda). multipart/form-data: initData, code, type, file.
+        """
+        try:
+            reader = await request.multipart()
+        except Exception:
+            return web.json_response({"error": "Нотўғри сўров"}, status=400)
+
+        fields, filename, payload = {}, None, None
+        try:
+            while True:
+                part = await reader.next()
+                if part is None:
+                    break
+                if part.name == "file":
+                    filename = part.filename
+                    payload = await part.read(decode=False)
+                else:
+                    fields[part.name] = (await part.read(decode=True)).decode("utf-8")
+        except ValueError:
+            # client_max_size dan oshib ketgan
+            return web.json_response(
+                {"error": f"Файл жуда катта (энг кўпи {MAX_UPLOAD_MB} MB)"}, status=400)
+
+        user, err = _require_admin(fields)
+        if err:
+            return err
+        if not payload:
+            return web.json_response({"error": "Файл танланмади"}, status=400)
+
+        forced = (fields.get("type") or "").strip().upper() or None
+        if forced and forced not in doc_types.ATTACHABLE:
+            return web.json_response({"error": f"Нотаниш ҳужжат тури: {forced}"}, status=400)
+
+        name, doc_type = ctx["save_upload"](
+            (fields.get("code") or "").upper(), filename, payload, forced)
+        if name is None:
+            return web.json_response({"error": doc_type}, status=400)
+
+        message = f"{name} қўшилди → {doc_type}"
+        history_store.add("upload", message, user.get("first_name") or str(user.get("id")))
+        return web.json_response({"ok": True, "message": message, **_collect_state()})
+
     app.router.add_get("/", index)
     app.router.add_post("/api/state", api_state)
     app.router.add_post("/api/action", api_action)
+    app.router.add_post("/api/upload", api_upload)
     app.router.add_static("/static/", WEB_DIR)
     return app
 
