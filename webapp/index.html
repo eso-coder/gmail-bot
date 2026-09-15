@@ -68,6 +68,18 @@ main{padding:14px}
 .tag .x:active{opacity:1}
 .hintline{color:var(--hint); font-size:11.5px; margin-top:7px}
 
+/* давр танлаш тугмалари ва рақамлар */
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip{border:0; border-radius:9px; padding:8px 12px; cursor:pointer;
+      font:600 12.5px/1 inherit; font-family:inherit;
+      background:var(--soft); color:var(--hint)}
+.chip.on{background:var(--accent); color:var(--onacc)}
+.nums{display:flex; gap:6px; flex-wrap:wrap}
+.nm{flex:1; min-width:68px; background:var(--bg); border-radius:11px;
+    padding:10px 8px; text-align:center}
+.nm b{display:block; font-size:19px; letter-spacing:-.5px}
+.nm span{font-size:10.5px; color:var(--hint)}
+
 /* бошқарув */
 .acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
 .btn{
@@ -162,7 +174,7 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
     <button data-t="batches" class="on"><span class="ic">📦</span>Партиялар<span class="n" id="n-batches">0</span></button>
     <button data-t="customers"><span class="ic">👥</span>Мижозлар<span class="n" id="n-customers">0</span></button>
     <button data-t="unmatched"><span class="ic">❓</span>Ноаниқ<span class="n" id="n-unmatched">0</span></button>
-    <button data-t="history"><span class="ic">🕘</span>Тарих<span class="n" id="n-history">0</span></button>
+    <button data-t="history"><span class="ic">📊</span>Ҳисобот<span class="n" id="n-history">0</span></button>
     <button data-t="access"><span class="ic">⚙️</span>Созлама<span class="n">&nbsp;</span></button>
   </div>
 </div>
@@ -197,6 +209,10 @@ summary{cursor:pointer; font-size:12.5px; color:var(--accent); font-weight:500}
 const tg = window.Telegram && window.Telegram.WebApp;
 let S = null;
 let editing = null;          // qaysi mijoz tahrirlanmoqda
+let R = null;                // hisobot ma'lumotlari (alohida so'raladi)
+let repView = "sent";        // "sent" - yuborilganlar, "acts" - amallar
+let repPeriod = "30";
+let repCustomer = "";
 const picked = new Set();
 
 if (tg) { tg.ready(); tg.expand(); }
@@ -273,9 +289,11 @@ async function act(action, data, ask){
 /* ---------- chizish ---------- */
 function draw(){
   if (!S) return;
-  ["batches","customers","unmatched","history"].forEach(k => {
+  ["batches","customers","unmatched"].forEach(k => {
     document.getElementById("n-" + k).textContent = (S[k] || []).length;
   });
+  // Hisobot bo'limida yuborilgan partiyalar soni ko'rsatiladi
+  document.getElementById("n-history").textContent = S.sent_count || 0;
   drawBatches(); drawCustomers(); drawUnmatched(); drawHistory(); drawAccess();
   syncDock();
 }
@@ -456,17 +474,109 @@ function drawUnmatched(){
     + "</div></div>").join("");
 }
 
+/* ---------- Ҳисобот ---------- */
+/* Ikki ko'rinish: yuborilgan partiyalar hisoboti va amallar tarixi. */
+
+const PERIODS = [["today","Бугун"], ["7","7 кун"], ["30","30 кун"], ["all","Ҳаммаси"]];
+
 function drawHistory(){
   const el = document.getElementById("p-history");
+  const tab = v => '<button class="chip' + (repView === v ? " on" : "")
+    + '" onclick="repView=\'' + v + "';drawHistory()\">"
+    + (v === "sent" ? "📨 Юборилганлар" : "🕘 Амаллар") + "</button>";
+
+  el.innerHTML = '<div class="chips" style="margin-bottom:12px">'
+    + tab("sent") + tab("acts") + "</div>"
+    + '<div id="rep-body"></div>';
+
+  document.getElementById("rep-body").innerHTML =
+    repView === "sent" ? reportHtml() : actsHtml();
+}
+
+function actsHtml(){
   if (!S.history || !S.history.length){
-    el.innerHTML = '<div class="empty"><span class="em">🕘</span>Тарих бўш.</div>';
-    return;
+    return '<div class="empty"><span class="em">🕘</span>Амаллар тарихи бўш.</div>';
   }
-  el.innerHTML = '<div class="card">' + S.history.map(h =>
+  return '<div class="card">' + S.history.map(h =>
     '<div class="ev"><div class="i">' + esc(h.icon) + "</div><div>"
     + '<div class="t">' + esc(h.text) + "</div>"
     + '<div class="w">' + when(h.at) + (h.who ? " · " + esc(h.who) : "") + "</div>"
     + "</div></div>").join("") + "</div>";
+}
+
+function reportHtml(){
+  const chips = PERIODS.map(([k, label]) =>
+    '<button class="chip' + (repPeriod === k ? " on" : "")
+    + '" onclick="repPeriod=\'' + k + "';loadReport()\">" + label + "</button>").join("");
+
+  const filter = '<div class="card">'
+    + '<div class="chips">' + chips + "</div>"
+    + "<label>Мижоз</label>"
+    + "<select onchange=\"repCustomer=this.value;loadReport()\">"
+    +   '<option value="">— барчаси —</option>'
+    +   (R ? R.customers.map(c => '<option value="' + esc(c) + '"'
+          + (c === repCustomer ? " selected" : "") + ">" + esc(c) + "</option>").join("") : "")
+    + "</select></div>";
+
+  if (!R) return filter + '<div class="sk"></div><div class="sk"></div>';
+
+  const t = R.totals;
+  const totals = '<div class="card"><div class="nums">'
+    + num(t.batches, "партия") + num(t.files, "файл")
+    + num(t.customers, "мижоз") + num(t.emails, "манзил")
+    + "</div>"
+    + '<div class="acts"><button class="btn sm" onclick="act(\'report_send\','
+    + "{period:repPeriod,customer:repCustomer})\">📤 CSV ни чатга юбориш</button></div></div>";
+
+  if (!R.entries.length){
+    return filter + totals
+      + '<div class="empty"><span class="em">📭</span>Бу давр учун юборилган партия йўқ.</div>';
+  }
+
+  const list = R.entries.map(e => {
+    const files = e.files.map(f =>
+      "<div>" + esc(f.type || "—") + " · " + esc(f.name) + "</div>").join("");
+    return '<div class="card">'
+      + '<div class="hd"><div>'
+      +   '<div class="name">' + esc(e.display) + "</div>"
+      +   '<div class="meta">' + (esc(e.customer) || "—")
+      +     (e.truck ? " · фура " + esc(e.truck) : "")
+      +     " · " + e.file_count + " файл</div>"
+      + '</div><span class="pill ' + (e.missing.length ? "low" : "ok") + '">'
+      +   (e.missing.length ? "чала" : "тўлиқ") + "</span></div>"
+      + '<div class="meta" style="margin-top:8px">🕘 ' + stamp(e.sent_at) + "</div>"
+      + '<div class="meta">✉️ ' + (esc(e.emails.join(", ")) || "—") + "</div>"
+      + (e.missing.length
+          ? '<div class="meta" style="color:var(--danger)">⚠️ йетишмаган: '
+            + esc(e.missing.join(", ")) + "</div>"
+          : "")
+      + (e.subject ? '<div class="meta">📧 ' + esc(e.subject) + "</div>" : "")
+      + "<details><summary>Файллар (" + e.file_count + ")</summary>"
+      +   '<div class="flist">' + files + "</div></details></div>";
+  }).join("");
+
+  return filter + totals + list;
+}
+
+function num(value, label){
+  return '<div class="nm"><b>' + value + "</b><span>" + label + "</span></div>";
+}
+
+function stamp(ts){
+  const d = new Date(ts * 1000), p = n => String(n).padStart(2, "0");
+  return p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + d.getFullYear()
+       + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+async function loadReport(){
+  R = null;
+  drawHistory();
+  try {
+    R = await api("/api/report", {period: repPeriod, customer: repCustomer});
+  } catch(e){
+    toast(e.message, true);
+  }
+  drawHistory();
 }
 
 function when(ts){
@@ -574,6 +684,8 @@ document.querySelectorAll(".seg button").forEach(btn => {
     ["batches","customers","unmatched","history","access"].forEach(k => {
       document.getElementById("p-" + k).hidden = (k !== btn.dataset.t);
     });
+    // Hisobot katta bo'lishi mumkin - faqat kerak bo'lganda yuklanadi
+    if (btn.dataset.t === "history" && !R) loadReport();
     window.scrollTo(0, 0);
   };
 });

@@ -36,8 +36,14 @@ def _save(data: dict) -> None:
     storage.save_json(SENT_FILE, data)
 
 
-def record(code: str, display: str, customer: str, emails: list, files: list) -> None:
-    """Muvaffaqiyatli yuborilgan partiyani tarixga yozadi."""
+def record(code: str, display: str, customer: str, emails: list, files: list,
+           truck: str = None, subject: str = None) -> None:
+    """
+    Muvaffaqiyatli yuborilgan partiyani tarixga yozadi.
+
+    Bu yozuvlar ikki vazifani bajaradi: qayta yuborishni aniqlash va
+    HISOBOT (kimga, qachon, qaysi hujjatlar yuborilgani).
+    """
     data = _load()
     entry = data.get(code) or {}
     known = {f.get("file_unique_id") for f in entry.get("files", [])}
@@ -47,7 +53,11 @@ def record(code: str, display: str, customer: str, emails: list, files: list) ->
         uid = f.get("file_unique_id")
         if uid and uid in known:
             continue
-        merged.append({"filename": f.get("filename"), "file_unique_id": uid})
+        merged.append({
+            "filename": f.get("filename"),
+            "file_unique_id": uid,
+            "doc_type": f.get("doc_type"),
+        })
         known.add(uid)
 
     data[code] = {
@@ -56,6 +66,9 @@ def record(code: str, display: str, customer: str, emails: list, files: list) ->
         "sent_at": time.time(),
         "emails": list(emails or []),
         "files": merged,
+        # Hisobot uchun: fura raqami va xatning mavzusi
+        "truck": truck or entry.get("truck"),
+        "subject": subject or entry.get("subject"),
     }
     _prune(data)
     _save(data)

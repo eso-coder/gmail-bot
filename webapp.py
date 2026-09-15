@@ -29,6 +29,8 @@ import config
 import customer_store
 import doc_types
 import history_store
+import report
+import sent_store
 import session_store
 import storage
 import unmatched_store
@@ -148,6 +150,8 @@ def _collect_state() -> dict:
         "admins": admins,
         "owner": access_store.owner_id(),
         "history": history_store.recent(60),
+        # Hisobot bo'limidagi hisoblagich uchun (to'liq ro'yxat /api/report da)
+        "sent_count": len(sent_store.all_sent()),
     }
 
 
@@ -291,6 +295,14 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
             return {"ok": True, "message": f"Админ ўчирилди: {uid}"}
         return {"error": "Админ топилмади"}
 
+    if action == "report_send":
+        # Hisobotni CSV fayl ko'rinishida so'ragan admin'ning chatiga yuboradi
+        period = str(data.get("period") or "30")
+        if period not in report.PERIODS:
+            period = "30"
+        await ctx["send_report"](ctx["user_id"], period, data.get("customer") or "")
+        return {"ok": True, "message": "Ҳисобот чатга юборилди"}
+
     if action == "group_remove":
         raw = str(data.get("id", "")).strip()
         if not raw.lstrip("-").isdigit():
@@ -374,6 +386,22 @@ def create_app(ctx) -> web.Application:
         result.update(_collect_state())
         return web.json_response(result)
 
+    async def api_report(request):
+        """Yuborilgan partiyalar hisoboti (davr va mijoz bo'yicha filtrlangan)."""
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"error": "Нотўғри сўров"}, status=400)
+        user, err = _require_admin(payload)
+        if err:
+            return err
+
+        period = str(payload.get("period") or "30")
+        if period not in report.PERIODS:
+            period = "30"
+        return web.json_response({"ok": True,
+                                  **report.collect(period, payload.get("customer") or "")})
+
     async def api_upload(request):
         """
         Telefondan fayl yuklash (Mini App'da yetishmagan hujjat ustiga
@@ -422,6 +450,7 @@ def create_app(ctx) -> web.Application:
     app.router.add_get("/", index)
     app.router.add_post("/api/state", api_state)
     app.router.add_post("/api/action", api_action)
+    app.router.add_post("/api/report", api_report)
     app.router.add_post("/api/upload", api_upload)
     app.router.add_static("/static/", WEB_DIR)
     return app
