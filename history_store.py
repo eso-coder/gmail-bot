@@ -43,6 +43,7 @@ ICONS = {
     "group_add": "📢",
     "group_remove": "📢",
     "doc_edited": "✏️",
+    "doc_moved": "↔️",
 }
 
 

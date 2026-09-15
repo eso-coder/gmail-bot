@@ -1848,6 +1848,30 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if parsed["is_declaration"]:
             doc_type = "DEKL"
 
+    # ---- Tahrirlashda PARTIYA KODI o'zgargan bo'lsa ----
+    #
+    # Hodimlar ko'pincha oldingi partiyaning xabarini tahrirlab yangisini
+    # yasaydi: "NGS94SPETS.pdf" -> "NGS95SPETS.pdf". Ilgari bot faylni
+    # ESKI partiyada qoldirardi, natijada yangi partiyada (NGS-95) SPETS
+    # yetishmayapti deb hisoblanardi va hujjat mijozga ketmasdi.
+    if parsed and parsed["code"] != code:
+        old_name = old.get("filename", "?")
+        batch_store.remove_file(code, message.message_id)
+        logger.info("Tahrirlangan hujjat partiyasi o'zgardi: %s (%s) -> %s (%s)",
+                    old_name, code, name, parsed["code"])
+        history_store.add("doc_moved", f"{old_name}: {code} → {parsed['code']}")
+
+        # Yangi partiyaga oddiy yo'l bilan qo'shamiz (mijoz aniqlash,
+        # dublikat tekshiruvi, deklaratsiya bo'lsa - yuborish ham shu yerda)
+        await _process_incoming_file(update, context, name, fid, fuid)
+        await safe_send(
+            context, update.effective_chat.id,
+            f"✏️ Таҳрирланган ҳужжат олинди: {old_name} → {safe_filename(name)}\n"
+            f"Партия ўзгарди: {format_code_display(code)} → "
+            f"{format_code_display(parsed['code'])}",
+        )
+        return
+
     batch_store.replace_file(code, message.message_id, safe_filename(name),
                              fid, fuid, doc_type=doc_type, truck=truck)
 

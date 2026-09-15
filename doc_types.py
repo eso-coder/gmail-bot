@@ -105,10 +105,36 @@ def _tokens(text: str) -> list:
 _LOOKALIKE = str.maketrans("АВСЕНКМОРТХУЁІЈ", "ABCEHKMOPTXYEIJ")
 
 
-def _keyword(token: str):
-    """Token qaysi hujjat turiga tegishli - kirill/lotin aralashini ham hisobga oladi."""
-    upper = token.upper()
+def _exact(upper: str):
     return KEYWORDS.get(upper) or KEYWORDS.get(upper.translate(_LOOKALIKE))
+
+
+def _keyword(token: str):
+    """
+    Token qaysi hujjat turiga tegishli.
+
+    Kirill/lotin aralashuvidan tashqari ikkita keng tarqalgan nomlash
+    xatosini ham tushunadi:
+      "ST1", "CMR2"  - ko'p sahifali skanerga tartib raqami qo'shilgan
+      "CMRR", "TIRR" - oxirgi harf ikki marta bosilgan
+    """
+    upper = token.upper()
+    found = _exact(upper)
+    if found:
+        return found
+
+    # Oxiridagi tartib raqamini olib tashlaymiz: "ST1" -> "ST"
+    base = upper.rstrip("0123456789")
+    if base and base != upper:
+        found = _exact(base)
+        if found:
+            return found
+        upper = base
+
+    # Takrorlangan oxirgi harf: "CMRR" -> "CMR"
+    if len(upper) > 2 and upper[-1] == upper[-2]:
+        return _exact(upper[:-1])
+    return None
 
 
 def detect(remainder: str, extension: str = ""):

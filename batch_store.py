@@ -106,6 +106,41 @@ def replace_file(code: str, message_id: int, filename: str, file_id: str,
     return False
 
 
+def remove_file(code: str, message_id: int):
+    """
+    Partiyadan bitta faylni olib tashlaydi.
+
+    Kerak bo'ladigan holat: guruhda hujjat TAHRIRLANIB, uning partiya kodi
+    o'zgargan (masalan "NGS94INV.pdf" -> "NGS95INV.pdf"). Bunda fayl eski
+    partiyada qolib ketmasligi, yangisiga ko'chishi kerak.
+
+    Qaytaradi: olib tashlangan yozuv yoki None.
+    """
+    data = _load()
+    batch = data.get(code)
+    if not batch:
+        return None
+
+    for i, f in enumerate(batch.get("files", [])):
+        if f.get("message_id") != message_id:
+            continue
+        removed = batch["files"].pop(i)
+        path = removed.get("path")
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        if batch["files"]:
+            batch["updated_at"] = time.time()
+        else:
+            # Bo'shab qolgan partiya osilib qolmasin
+            del data[code]
+        _save(data)
+        return removed
+    return None
+
+
 def find_by_message(message_id: int):
     """Tahrirlangan xabar qaysi partiyaga tegishli ekanini topadi."""
     for code, batch in _load().items():
