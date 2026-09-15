@@ -1841,12 +1841,34 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await _process_incoming_file(update, context, name, fid, fuid)
         return
 
+    new_name = safe_filename(name)
+
+    # ---- Haqiqatan biror narsa o'zgardimi? ----
+    #
+    # Telegram izoh (caption) tahrirlanganda ham, ba'zan xabarning o'zi
+    # o'zgarmasa ham `edited_message` yuboradi. `file_unique_id` faylning
+    # MAZMUNIGA bog'langan: u ham, nom ham o'zgarmagan bo'lsa, hujjat
+    # almashtirilmagan. Ilgari bot bunday hollarda ham "таҳрирланди" deb
+    # xabar yozar va yuklab olingan nusxani bekordan o'chirib yuborardi.
+    if fuid and fuid == old.get("file_unique_id") and new_name == old.get("filename"):
+        logger.info("Tahrir e'tiborsiz qoldirildi: %s (%s) - fayl o'zgarmagan", new_name, code)
+        return
+
+    # ---- Hujjat turi ----
+    #
+    # Yangi nom tanilmasa (masalan izohsiz rasm almashtirilsa), ESKI tur
+    # saqlanadi. Aks holda fayl komplektdan tushib qolar va xatga ham
+    # qo'shilmasdi - ya'ni almashtirilgan hujjat "yo'qolardi".
     parsed = session_store.parse(name)
-    doc_type, truck = (None, None)
+    doc_type, truck = old.get("doc_type"), old.get("truck")
     if parsed:
-        doc_type, truck = doc_types.detect(parsed["remainder"], parsed["extension"])
+        detected, new_truck = doc_types.detect(parsed["remainder"], parsed["extension"])
         if parsed["is_declaration"]:
-            doc_type = "DEKL"
+            detected = "DEKL"
+        if detected:
+            doc_type = detected
+        if new_truck:
+            truck = new_truck
 
     # ---- Tahrirlashda PARTIYA KODI o'zgargan bo'lsa ----
     #
@@ -1872,7 +1894,10 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
 
-    batch_store.replace_file(code, message.message_id, safe_filename(name),
+    # `path` bo'shatiladi va eski nusxa o'chiriladi - shu tufayli
+    # deklaratsiya kelganda fayl AYNAN SHU, yangi versiyasi bo'yicha
+    # qaytadan yuklab olinadi va mijozga o'shanisi ketadi.
+    batch_store.replace_file(code, message.message_id, new_name,
                              fid, fuid, doc_type=doc_type, truck=truck)
 
     old_name = old.get("filename", "?")
@@ -1880,7 +1905,6 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
     history_store.add("doc_edited", f"{code}: {old_name} янгиланди")
 
     batch = batch_store.get_batch(code)
-    new_name = safe_filename(name)
     text = f"✏️ Таҳрирланган ҳужжат олинди: {old_name}"
     if new_name != old_name:
         text += f" → {new_name}"
