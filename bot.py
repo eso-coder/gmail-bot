@@ -404,9 +404,38 @@ async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def chatid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Chat ID sini aytadi. Guruhda yozilsa - qo'shimcha TEKSHIRUV ham qiladi:
+    guruh ro'yxatdami, botning huquqi qanday.
+
+    Buyruqlar Privacy Mode yoqiq bo'lganda ham botga yetib boradi. Shuning
+    uchun "bot bu guruhni umuman o'qimayapti" degan holatda aynan shu
+    buyruq javob beradimi yoki yo'qmi - eng aniq belgi.
+    """
     message = update.effective_message
-    if message:
-        await message.reply_text(f"Ушбу чат ID: {update.effective_chat.id}")
+    chat = update.effective_chat
+    if message is None or chat is None:
+        return
+
+    lines = [f"Ушбу чат ID: {chat.id}", f"Тури: {chat.type}"]
+
+    if chat.type in ("group", "supergroup"):
+        registered = access_store.is_allowed_group(chat.id)
+        lines.append("Рўйхатда: " + ("ҲА ✅" if registered else "ЙЎҚ ❌ — /group_add ёзинг"))
+        try:
+            me = await context.bot.get_me()
+            member = await context.bot.get_chat_member(chat.id, me.id)
+            lines.append(f"Ботнинг ҳолати: {member.status}")
+            if member.status != "administrator":
+                lines.append(
+                    "\n⚠️ Агар бот шу гуруҳдаги ҳужжатларни кўрмаётган бўлса — "
+                    "уни АДМИН қилинг. Админ ботга Privacy Mode таъсир қилмайди "
+                    "ва у барча хабарларни кўради."
+                )
+        except TelegramError:
+            pass
+
+    await message.reply_text("\n".join(lines))
 
 
 # ---------- Holat (diagnostika) ----------
@@ -1656,6 +1685,14 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     logger.info("%s -> %s: yuborildi=%s, xato=%s", code, customer_name, ok, failed)
 
 
+def _chat_label(update: Update) -> str:
+    """Log uchun: qaysi guruhdan kelgani ("-1002... 6ARIQ DOK 2026")."""
+    chat = update.effective_chat
+    if chat is None:
+        return "?"
+    return f"{chat.id} {chat.title or chat.type}"
+
+
 def _in_allowed_chat(update: Update) -> bool:
     chat = update.effective_chat
     if chat is None:
@@ -1848,7 +1885,8 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
         #
         # Bu ham logga yoziladi: "hujjat tashladim, bot olmadi" degan holatda
         # aynan qaysi fayl nomi tanilmaganini ko'rish uchun yagona yo'l shu.
-        logger.info("KO'RILDI: %r -> kod topilmadi, e'tiborsiz", filename)
+        logger.info("KO'RILDI: %r -> kod topilmadi, e'tiborsiz [%s]",
+                    filename, _chat_label(update))
         return
 
     code = parsed["code"]
@@ -1858,7 +1896,8 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     if is_declaration:
         doc_type = "DEKL"
 
-    logger.info("KO'RILDI: %r -> kod=%s tur=%s fura=%s", filename, code, doc_type, truck)
+    logger.info("KO'RILDI: %r -> kod=%s tur=%s fura=%s [%s]",
+                filename, code, doc_type, truck, _chat_label(update))
 
     # ---- 0. Bu bizning hujjatimizmi? ----
     # Guruhga chek, pasport nusxasi, haydovchi rasmi kabi begona fayllar ham
