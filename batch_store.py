@@ -247,6 +247,29 @@ def clear_batch(code: str, delete_files: bool = True) -> None:
         _save(data)
 
 
+def set_awaiting(code: str, chat_id=None) -> bool:
+    """
+    "Deklaratsiya keldi, lekin komplekt to'liq emas" holatini belgilaydi.
+
+    Amalda ST/FITO kabi hujjatlar deklaratsiyadan bir necha soat KEYIN
+    tayyor bo'ladi. Shu belgi turganda, yetishmagan hujjat kelishi bilan
+    partiya avtomatik yuboriladi - deklaratsiyani qayta tashlash shart emas.
+    """
+    data = _load()
+    batch = data.get(code)
+    if not batch:
+        return False
+    batch["awaiting_since"] = time.time()
+    if chat_id is not None:
+        batch["notify_chat_id"] = chat_id
+    _save(data)
+    return True
+
+
+def is_awaiting(batch: dict) -> bool:
+    return bool((batch or {}).get("awaiting_since"))
+
+
 def mark_reminded(code: str) -> None:
     data = _load()
     if code in data:

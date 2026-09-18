@@ -1238,10 +1238,11 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
         batch = batch_store.get_batch(code)
         display = batch_display_code(code, batch)
         if answer == "no":
+            batch_store.set_awaiting(code, update.effective_chat.id)
             await safe_edit(
                 query,
-                f"⏳ \"{display}\" кутилмоқда. Етишмаган ҳужжатларни ташлаб, "
-                f"декларацияни қайта юборинг.\nЖавоб берди: {who}"
+                f"⏳ \"{display}\" кутилмоқда. Йетишмаган ҳужжат келиши билан "
+                f"бот ўзи почтага юборади.\nЖавоб берди: {who}"
             )
             return
 
@@ -1912,6 +1913,9 @@ async def handle_edited_file(update: Update, context: ContextTypes.DEFAULT_TYPE)
              f"[{doc_types.progress_line(batch['files'])}]")
     await safe_send(context, update.effective_chat.id, text)
 
+    # Almashtirilgan hujjat komplektni to'ldirgan bo'lishi mumkin
+    await _maybe_autosend(update, context, code)
+
 
 DOWNLOAD_ATTEMPTS = 3
 
@@ -2085,7 +2089,11 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
 
     if is_declaration:
         await _on_declaration(update, context, code)
-    # Oddiy hujjatlar uchun guruhga hech narsa yozilmaydi - bot ularni
+    else:
+        # Deklaratsiya allaqachon kelgan bo'lsa (partiya kutib turibdi),
+        # kech qolgan hujjat kelishi bilan avtomatik yuboriladi.
+        await _maybe_autosend(update, context, code)
+    # Qolgan hollarda guruhga hech narsa yozilmaydi - bot hujjatlarni
     # JIMGINA yig'ib boradi. Xabar faqat deklaratsiya kelganda chiqadi.
 
 
@@ -2106,6 +2114,11 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
     missing = doc_types.missing_types(batch["files"])
 
     if missing:
+        # Komplekt to'liq emas - partiyani KUTISH holatiga qo'yamiz.
+        # ST/FITO kabi hujjatlar ko'pincha deklaratsiyadan keyin tayyor
+        # bo'ladi; ular kelishi bilan partiya o'zi yuboriladi.
+        batch_store.set_awaiting(code, chat_id)
+
         # Ҳужжатларни ташлаган одам(лар)ни белгилаймиз — шунда у бевосита
         # билдиришнома олади ва нима йетишмаётганини кўради.
         who = _batch_mentions(batch, update.effective_user)
@@ -2114,32 +2127,100 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
 
         await safe_send(
             context, chat_id,
-            f"🛑 {head}<b>{esc_display}</b> — "
+            f"⏳ {head}<b>{esc_display}</b> — "
             f"{', '.join(html.escape(t) for t in missing)} ҳужжат"
             f"{'и' if len(missing) == 1 else 'лари'} йетишмаяпти "
             f"[{doc_types.progress_line(batch['files'])}]\n\n"
             f"❌ Йетишмаётганлар:\n" +
             "\n".join(f"   • {html.escape(doc_types.title(t))}" for t in missing) +
-            f"\n\nЙетишмаган ҳужжатларни ташланг, сўнг декларацияни "
-            f"({esc_display}.pdf) қайта юборинг.\n"
-            f"Ёки қуйидаги тугма билан шу ҳолатда юборишингиз мумкин.",
+            f"\n\n📌 Декларация олинди. Йетишмаган ҳужжатни ташласангиз — "
+            f"бот ўзи почтага юборади, декларацияни қайта ташлаш шарт эмас.\n"
+            f"Кутмасдан ҳозир юбормоқчи бўлсангиз — қуйидаги тугма.",
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚠️ Барибир юборилсин", callback_data=f"force:yes:{_tok(code)}"),
-                InlineKeyboardButton("⏳ Кутамиз", callback_data=f"force:no:{_tok(code)}"),
+                InlineKeyboardButton("⚠️ Барибир ҳозир юборилсин",
+                                     callback_data=f"force:yes:{_tok(code)}"),
             ]]),
             parse_mode="HTML",
         )
         await notify_admin(
             context,
-            f"🛑 \"{display}\" комплекти тўлиқ эмас, юборилмади.\n"
+            f"⏳ \"{display}\" комплекти тўлиқ эмас — кутилмоқда.\n"
             f"Йетишмаяпти: {', '.join(missing)}\n"
-            f"Мажбуран юбориш: /batch_send {code}"
+            f"Улар келиши билан автоматик юборилади.\n"
+            f"Кутмасдан юбориш: /batch_send {code}"
         )
         return
 
     # Komplekt to'liq - ortiqcha xabar yozmaymiz, to'g'ridan-to'g'ri
     # yuboramiz. Guruh faqat yakuniy "yuborildi" xabarini ko'radi.
     await _finalize_and_send(code, context, notify_chat_id=chat_id)
+
+
+# Kech kelgan hujjatlar odatda albom bo'lib, bir necha soniya ichida
+# ketma-ket tushadi. Har biriga alohida javob yozmaslik uchun tekshiruv
+# shuncha soniyaga kechiktiriladi va oxirgisi kelgach bir marta bajariladi.
+AUTOSEND_DELAY = 20
+
+
+async def _run_autosend(context: ContextTypes.DEFAULT_TYPE, code: str, chat_id):
+    """
+    Deklaratsiyasi kelgan, lekin to'liq bo'lmagani uchun kutayotgan
+    partiyani tekshiradi: komplekt to'lgan bo'lsa - pochtaga yuboradi.
+    """
+    batch = batch_store.get_batch(code)
+    if not batch or not batch_store.is_awaiting(batch):
+        return
+
+    chat_id = batch.get("notify_chat_id") or chat_id
+    display = batch_display_code(code, batch)
+    missing = doc_types.missing_types(batch["files"])
+
+    if missing:
+        await safe_send(
+            context, chat_id,
+            f"📥 \"{display}\" — ҳужжат олинди "
+            f"[{doc_types.progress_line(batch['files'])}]\n"
+            f"Ҳали йетишмаяпти: {', '.join(missing)}\n"
+            f"Тўлиқ бўлиши билан автоматик юборилади."
+        )
+        return
+
+    logger.info("%s komplekti to'ldi - avtomatik yuborilmoqda", code)
+    await safe_send(context, chat_id,
+                    f"✅ \"{display}\" комплекти тўлиқ бўлди — почтага юборилмоқда...")
+    await _finalize_and_send(code, context, notify_chat_id=chat_id)
+
+
+async def _autosend_job(context: ContextTypes.DEFAULT_TYPE):
+    data = context.job.data or {}
+    try:
+        await _run_autosend(context, data.get("code"), data.get("chat_id"))
+    except Exception:
+        logger.exception("Avtomatik yuborishda xatolik: %s", data.get("code"))
+
+
+async def _maybe_autosend(update: Update, context: ContextTypes.DEFAULT_TYPE, code: str):
+    """
+    Partiya kutish holatida bo'lsa, tekshiruvni rejalashtiradi.
+    Ketma-ket kelgan fayllar uchun oldingi reja bekor qilinadi - shunda
+    guruhga bitta javob yoziladi.
+    """
+    batch = batch_store.get_batch(code)
+    if not batch or not batch_store.is_awaiting(batch):
+        return
+
+    chat_id = batch.get("notify_chat_id") or update.effective_chat.id
+    job_queue = getattr(context, "job_queue", None)
+    if job_queue is None:
+        # JobQueue o'rnatilmagan bo'lsa ham ishlashi kerak
+        await _run_autosend(context, code, chat_id)
+        return
+
+    name = f"autosend:{code}"
+    for job in job_queue.get_jobs_by_name(name):
+        job.schedule_removal()
+    job_queue.run_once(_autosend_job, AUTOSEND_DELAY, name=name,
+                       data={"code": code, "chat_id": chat_id})
 
 
 async def _download_batch_files(context: ContextTypes.DEFAULT_TYPE, code: str):
@@ -2373,10 +2454,19 @@ async def check_stale_batches(context: ContextTypes.DEFAULT_TYPE):
             file_count = len(batch.get("files", []))
             elapsed = format_elapsed(now - batch.get("created_at", now))
 
+            # Deklaratsiyasi kelgan, lekin hujjat kutayotgan partiya uchun
+            # "deklaratsiyasiz" deb yozish chalkash bo'lardi
+            if batch_store.is_awaiting(batch):
+                missing = doc_types.missing_types(batch.get("files", []))
+                waiting_for = (f"{', '.join(missing) or 'ҳужжат'} кутмоқда "
+                               f"(декларация олинган)")
+            else:
+                waiting_for = "декларациясиз кутмоқда"
+
             await notify_admin(
                 context,
                 f"⏰ Eslatma: \"{batch_display_code(code, batch)}\" партияси {elapsed} dan beri "
-                f"декларациясиз кутмоқда.\n"
+                f"{waiting_for}.\n"
                 f"Мижоз: {customer}, {file_count} та файл.\n"
                 f"Қўлда юбориш: /batch_send {code}\n"
                 f"Бекор қилиш: /batch_cancel {code}"

@@ -333,7 +333,11 @@ function drawBatches(){
       + '</div><span class="pill ' + cls + '">' + esc(b.progress) + "</span></div>"
       + '<div class="bar">' + bar + "</div>"
       + '<div class="tags">' + tags + "</div>"
-      + (full ? "" : '<div class="hintline">Йетишмаган ҳужжат устига босиб, файл бириктиринг</div>')
+      + (full ? ""
+          : b.awaiting
+            ? '<div class="hintline" style="color:var(--ok)">📌 Декларация олинган — '
+              + "йетишмаган ҳужжат келиши билан бот ўзи юборади</div>"
+            : '<div class="hintline">Йетишмаган ҳужжат устига босиб, файл бириктиринг</div>')
       + "<details><summary>Файллар (" + b.file_count + ")</summary>"
       +   '<div class="flist">' + files + "</div></details>"
       + "<label>Мижоз</label>"
