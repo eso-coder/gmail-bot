@@ -1034,6 +1034,49 @@ async def unmatched_attach_all_command(update: Update, context: ContextTypes.DEF
 
 
 @private_only
+async def batch_merge_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Format: /batch_merge QAYERDAN | QAYERGA
+    Masalan: /batch_merge KGZ22 | KGZ24
+
+    Hujjatlar xato kod bilan nomlanib alohida partiyaga tushib qolganda
+    kerak bo'ladi. Birinchi partiyadagi fayllar ikkinchisiga ko'chiriladi.
+    """
+    message = update.effective_message
+    payload = (message.text or "").split(maxsplit=1)
+    if len(payload) < 2 or "|" not in payload[1]:
+        await message.reply_text(
+            "Формат: /batch_merge ҚАЙЕРДАН | ҚАЙЕРГА\n"
+            "Масалан: /batch_merge KGZ22 | KGZ24\n\n"
+            "Рўйхат: /batches"
+        )
+        return
+
+    src_part, dst_part = payload[1].split("|", 1)
+    src = re.sub(r"[^A-Za-z0-9А-Яа-я]", "", src_part).upper()
+    dst = re.sub(r"[^A-Za-z0-9А-Яа-я]", "", dst_part).upper()
+
+    if src == dst:
+        await message.reply_text("Бир партияни ўзига бирлаштириб бўлмайди.")
+        return
+    for code in (src, dst):
+        if not batch_store.get_batch(code):
+            await message.reply_text(f"\"{code}\" кодли партия топилмади. Рўйхат: /batches")
+            return
+
+    moved = batch_store.merge_into(src, dst)
+    batch = batch_store.get_batch(dst)
+    missing = doc_types.missing_types(batch["files"])
+    history_store.add("batch_merge", f"{src} → {dst}: {moved} файл")
+
+    text = (f"🔗 {src} → {dst} бирлаштирилди ({moved} та файл) "
+            f"[{doc_types.progress_line(batch['files'])}]\n")
+    text += (f"Йетишмаяпти: {', '.join(missing)}" if missing
+             else f"Комплект тўлиқ. Юбориш: /batch_send {dst}")
+    await message.reply_text(text)
+
+
+@private_only
 async def batch_assign_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Format: /batch_assign KOD | NOMI"""
     message = update.effective_message
@@ -1164,6 +1207,7 @@ HELP_TEXT = (
     "/batch_cancel KOD\n"
     "/unmatched\n"
     "/batch_attach KOD | ID\n"
+    "/batch_merge КОД1 | КОД2 — хато номланган партияни бирлаштириш\n"
     "/unmatched_attach_all — барча ноаниқ файлларни коди бўйича бириктириш\n"
     "/unmatched_delete ID\n"
     "/admins — админлар рўйхати\n"
@@ -2069,6 +2113,16 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     # Yuborilgan partiya batches.json dan o'chiriladi, shuning uchun uni
     # oddiy dublikat sifatida tanib bo'lmaydi - alohida tarixga qaraymiz.
     sent_code, sent_entry = sent_store.find_by_file(file_unique_id)
+    if not sent_code:
+        # Aynan shu fayl emas, lekin SHU KOD allaqachon yuborilgan bo'lishi
+        # mumkin - masalan deklaratsiya qayta eksport qilinib tashlanganda
+        # fayl boshqa bo'ladi. Ilgari bunda bot yangi bo'sh partiya ochib
+        # "0/7, hammasi yetishmayapti" deb yozardi - garchi partiya bir
+        # necha daqiqa oldin to'liq yuborilgan bo'lsa ham.
+        already = sent_store.get(code)
+        if already:
+            sent_code, sent_entry = code, already
+
     if sent_code and not batch_store.get_batch(code):
         await _ask_resend(update, context, code, display, filename,
                           file_id, file_unique_id, sent_code, sent_entry)
@@ -2352,6 +2406,12 @@ async def _ask_resend(update: Update, context: ContextTypes.DEFAULT_TYPE, code: 
     chat_id = update.effective_chat.id
     parsed = session_store.parse(filename)
     doc_type, truck = doc_types.detect(parsed["remainder"], parsed["extension"]) if parsed else (None, None)
+    # DEKLARATSIYA turini alohida belgilaymiz. Ilgari bu unutilgan edi:
+    # "KGZ-24.pdf" da tur aniqlanmasdi (nomida kalit so'z yo'q), shuning
+    # uchun qayta yuborishda deklaratsiya turi None bo'lib qolar va
+    # xatga UMUMAN qo'shilmasdi (turi tanilmagan fayl yuborilmaydi).
+    if parsed and parsed["is_declaration"]:
+        doc_type = "DEKL"
 
     try:
         local_path = await _download(
@@ -2798,6 +2858,7 @@ def main():
     app.add_handler(CommandHandler("prefix_add", prefix_add_command))
     app.add_handler(CommandHandler("prefix_remove", prefix_remove_command))
     app.add_handler(CommandHandler("batches", batches_command))
+    app.add_handler(CommandHandler("batch_merge", batch_merge_command))
     app.add_handler(CommandHandler("batch_assign", batch_assign_command))
     app.add_handler(CommandHandler("batch_send", batch_send_command))
     app.add_handler(CommandHandler("batch_cancel", batch_cancel_command))
