@@ -1229,6 +1229,38 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
             )
         return
 
+    # ---- Xato kod bilan nomlangan hujjatlarni birlashtirish ----
+    if action == "merge":
+        batches = batch_store.all_batches()
+        dst = _resolve(answer, batches)     # bu yerda "answer" - maqsad partiya tokeni
+        src = _resolve(token, batches)
+        if not dst or not src:
+            await safe_edit(query, "⌛ Бу партиялар энди мавжуд эмас "
+                                   "(юборилган ёки бекор қилинган).")
+            return
+
+        moved = batch_store.merge_into(src, dst)
+        batch = batch_store.get_batch(dst)
+        display = batch_display_code(dst, batch)
+        logger.info("%s -> %s birlashtirildi (%s ta fayl)", src, dst, moved)
+        history_store.add("batch_merge", f"{src} → {dst}: {moved} файл", who)
+
+        missing = doc_types.missing_types(batch["files"])
+        await safe_edit(
+            query,
+            f"🔗 {format_code_display(src)} → \"{display}\" бирлаштирилди "
+            f"({moved} та файл) [{doc_types.progress_line(batch['files'])}]\n"
+            f"Жавоб берди: {who}"
+        )
+        if missing:
+            await safe_send(context, update.effective_chat.id,
+                            f"Ҳали йетишмаяпти: {', '.join(missing)}")
+            return
+        await safe_send(context, update.effective_chat.id,
+                        f"✅ \"{display}\" комплекти тўлиқ — почтага юборилмоқда...")
+        await _finalize_and_send(dst, context, notify_chat_id=update.effective_chat.id)
+        return
+
     # ---- Komplekt to'liq emas, baribir yuborilsinmi ----
     if action == "force":
         code = _resolve(token, batch_store.all_batches())
@@ -1277,7 +1309,7 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data or ""
 
     # Guruhdagi savollar - alohida, admin bo'lish shart emas
-    if data.startswith(("resend:", "force:")):
+    if data.startswith(("resend:", "force:", "merge:")):
         if not _can_answer_in_group(update):
             return
         await _group_question_router(update, context, query, data)
@@ -2125,6 +2157,23 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
         head = f"{who}, " if who else ""
         esc_display = html.escape(display)
 
+        # Yetishmagan hujjatlar boshqa partiyada, XATO KOD bilan yotgan
+        # bo'lishi mumkin ("KGZ 22 ST 999.jpg" - aslida KGZ-24 niki).
+        # Fura raqami ikkalasida bir xil bo'lishi - eng ishonchli belgi.
+        suspect_code, suspect_types = _find_misnamed(code, batch, missing)
+
+        buttons = [[InlineKeyboardButton("⚠️ Барибир ҳозир юборилсин",
+                                         callback_data=f"force:yes:{_tok(code)}")]]
+        hint = ""
+        if suspect_code:
+            hint = (f"\n\n🔎 <b>{html.escape(format_code_display(suspect_code))}</b> партиясида "
+                    f"худди шу фура ({html.escape(str(batch.get('truck')))}) билан "
+                    f"{html.escape(', '.join(suspect_types))} бор.\n"
+                    f"Эҳтимол улар нотўғри номланган — аслида шу партияники.")
+            buttons.insert(0, [InlineKeyboardButton(
+                f"🔗 {format_code_display(suspect_code)} ни бирлаштириш",
+                callback_data=f"merge:{_tok(code)}:{_tok(suspect_code)}")])
+
         await safe_send(
             context, chat_id,
             f"⏳ {head}<b>{esc_display}</b> — "
@@ -2133,13 +2182,11 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
             f"[{doc_types.progress_line(batch['files'])}]\n\n"
             f"❌ Йетишмаётганлар:\n" +
             "\n".join(f"   • {html.escape(doc_types.title(t))}" for t in missing) +
+            hint +
             f"\n\n📌 Декларация олинди. Йетишмаган ҳужжатни ташласангиз — "
             f"бот ўзи почтага юборади, декларацияни қайта ташлаш шарт эмас.\n"
             f"Кутмасдан ҳозир юбормоқчи бўлсангиз — қуйидаги тугма.",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚠️ Барибир ҳозир юборилсин",
-                                     callback_data=f"force:yes:{_tok(code)}"),
-            ]]),
+            reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode="HTML",
         )
         await notify_admin(
@@ -2221,6 +2268,28 @@ async def _maybe_autosend(update: Update, context: ContextTypes.DEFAULT_TYPE, co
         job.schedule_removal()
     job_queue.run_once(_autosend_job, AUTOSEND_DELAY, name=name,
                        data={"code": code, "chat_id": chat_id})
+
+
+def _find_misnamed(code: str, batch: dict, missing: list):
+    """
+    Yetishmayotgan hujjatlar boshqa partiyada, xato kod bilan yotibdimi?
+
+    Belgisi: bir xil FURA RAQAMI. Masalan "KGZ-24 ... 999.xlsx" bor, lekin
+    skanerlar "KGZ 22 ST 999.jpg" deb nomlangan - ikkalasi ham 999-fura.
+
+    Qaytaradi: (kod, [topilgan turlar]) yoki (None, []).
+    """
+    truck = batch.get("truck")
+    if not truck or not missing:
+        return None, []
+
+    best_code, best_types = None, []
+    for other_code, other in batch_store.find_by_truck(truck, exclude_code=code):
+        found = [t for t in missing if any(f.get("doc_type") == t
+                                           for f in other.get("files", []))]
+        if len(found) > len(best_types):
+            best_code, best_types = other_code, found
+    return best_code, best_types
 
 
 async def _download_batch_files(context: ContextTypes.DEFAULT_TYPE, code: str):

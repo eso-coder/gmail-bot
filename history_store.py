@@ -44,6 +44,7 @@ ICONS = {
     "group_remove": "📢",
     "doc_edited": "✏️",
     "doc_moved": "↔️",
+    "batch_merge": "🔗",
 }
 
 

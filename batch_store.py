@@ -203,6 +203,52 @@ def set_customer(code: str, customer: str) -> bool:
     return False
 
 
+def find_by_truck(truck: str, exclude_code: str = None) -> list:
+    """
+    Shu fura raqamiga ega BOSHQA ochiq partiyalarni topadi.
+
+    Nima uchun kerak: skaner hujjatlari ba'zan xato kod bilan nomlanadi
+    ("KGZ 22 ST 999.jpg" - aslida KGZ-24 niki). Bunda ular alohida
+    partiyaga tushib qoladi va asosiy partiyada "yetishmayapti" bo'lib
+    ko'rinadi. Fura raqami esa ikkalasida bir xil bo'ladi - shu orqali
+    xatoni topish mumkin.
+
+    Qaytaradi: [(kod, partiya), ...]
+    """
+    if not truck:
+        return []
+    return [(code, b) for code, b in _load().items()
+            if code != exclude_code and b.get("truck") == truck]
+
+
+def merge_into(src_code: str, dst_code: str) -> int:
+    """
+    `src_code` partiyasidagi fayllarni `dst_code` ga ko'chiradi va
+    bo'shagan partiyani o'chiradi. Qaytaradi: ko'chirilgan fayllar soni.
+    """
+    data = _load()
+    src, dst = data.get(src_code), data.get(dst_code)
+    if not src or not dst:
+        return 0
+
+    known = {f.get("file_unique_id") for f in dst.get("files", [])}
+    moved = 0
+    for f in src.get("files", []):
+        uid = f.get("file_unique_id")
+        if uid and uid in known:
+            continue
+        dst.setdefault("files", []).append(f)
+        known.add(uid)
+        moved += 1
+
+    if not dst.get("truck") and src.get("truck"):
+        dst["truck"] = src["truck"]
+    dst["updated_at"] = time.time()
+    del data[src_code]
+    _save(data)
+    return moved
+
+
 def rename_customer(old: str, new: str) -> int:
     """Mijoz nomi o'zgarganda kutib turgan partiyalardagi nomni ham yangilaydi."""
     data = _load()
