@@ -219,8 +219,10 @@ def kb_unmatched() -> InlineKeyboardMarkup:
 
 
 def kb_report() -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(label, callback_data=f"rep:{key}")]
-            for key, label in report.PERIODS.items()]
+    # Birinchi tugma - eng ko'p kerak bo'ladigani: hozirgi holat
+    rows = [[InlineKeyboardButton("🌅 Ҳозирги ҳолат (Excel)", callback_data="rep:now")]]
+    rows += [[InlineKeyboardButton(label, callback_data=f"rep:{key}")]
+             for key, label in report.PERIODS.items()]
     rows.append([InlineKeyboardButton("⬅️ Бош меню", callback_data="menu:main")])
     return InlineKeyboardMarkup(rows)
 
@@ -1147,33 +1149,51 @@ async def batch_cancel_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await message.reply_text(f"\"{code}\" кодли партия топилмади.")
 
 
-async def _send_report(context: ContextTypes.DEFAULT_TYPE, chat_id, period: str,
-                       customer: str = "") -> None:
+async def _send_excel(context: ContextTypes.DEFAULT_TYPE, chat_id, hours: int,
+                      period: str, customer: str, caption: str) -> None:
     """
-    Hisobotni chatga yuboradi: qisqa matn + to'liq CSV fayl.
+    Excel (.xlsx) hisobotni chatga yuboradi.
 
-    CSV Excel'da ochiladi - shu tufayli hisobotni saqlash, chop etish yoki
-    boshqalarga uzatish mumkin.
+    Ikki varaq: "Ҳолат" (chala ketgan, xat yetmagan, kutayotganlar) va
+    "Юборилганлар" (to'liq ro'yxat, filtr bilan).
     """
-    data = report.collect(period, customer)
-    await safe_send(context, chat_id, report.text_summary(data))
-
-    if not data["entries"]:
+    try:
+        # Excel tayyorlash sekin bo'lishi mumkin - botni bloklamaymiz
+        data = await asyncio.to_thread(report.to_xlsx, hours, period, customer)
+    except Exception as e:
+        logger.exception("Excel hisobotni tayyorlab bo'lmadi")
+        await safe_send(context, chat_id, f"⚠️ Excel ҳисоботни тайёрлаб бўлмади: {e}")
         return
 
-    stamp = time.strftime("%Y-%m-%d")
-    name = f"hisobot-{period}-{stamp}.csv" if not customer else \
-           f"hisobot-{safe_filename(customer)}-{stamp}.csv"
+    stamp = time.strftime("%Y-%m-%d_%H-%M")
+    name = f"hisobot-{safe_filename(customer)}-{stamp}.xlsx" if customer \
+        else f"hisobot-{stamp}.xlsx"
     try:
         await context.bot.send_document(
-            chat_id,
-            document=InputFile(io.BytesIO(report.to_csv(data["entries"])), filename=name),
-            caption=f"📊 {data['totals']['batches']} партия · "
-                    f"{data['totals']['files']} файл",
-        )
+            chat_id, document=InputFile(io.BytesIO(data), filename=name), caption=caption)
     except TelegramError as e:
         logger.warning("Hisobot faylini yuborib bo'lmadi: %s", e)
-        await safe_send(context, chat_id, f"⚠️ CSV файлни юбориб бўлмади: {e}")
+        await safe_send(context, chat_id, f"⚠️ Excel файлни юбориб бўлмади: {e}")
+
+
+async def _send_report(context: ContextTypes.DEFAULT_TYPE, chat_id, period: str,
+                       customer: str = "") -> None:
+    """Davr bo'yicha hisobot: qisqa matn + Excel fayl."""
+    data = report.collect(period, customer)
+    await safe_send(context, chat_id, report.text_summary(data))
+    if not data["entries"]:
+        return
+    await _send_excel(context, chat_id, 24, period, customer,
+                      caption=f"📊 {data['totals']['batches']} партия · "
+                              f"{data['totals']['files']} файл")
+
+
+async def _send_digest(context: ContextTypes.DEFAULT_TYPE, chat_id, hours: int = 24) -> None:
+    """Joriy holat: nazorat matni + Excel fayl."""
+    digest = report.daily_digest(hours)
+    await safe_send(context, chat_id, digest["text"])
+    await _send_excel(context, chat_id, hours, "30", "",
+                      caption="📊 Ҳолат ва юборилганлар (Excel)")
 
 
 # Kunlik hisobot shu vaqtda yuboriladi (Toshkent vaqti bilan)
@@ -1183,11 +1203,10 @@ LOCAL_TZ = timezone(timedelta(hours=5))
 
 async def daily_digest_job(context: ContextTypes.DEFAULT_TYPE):
     """Har kuni ertalab: kecha nima bo'ldi va nimaga e'tibor kerak."""
+    if not config.ADMIN_USER_ID:
+        return
     try:
-        digest = report.daily_digest()
-        await notify_admin(context, digest["text"])
-        if digest["alarm"]:
-            logger.warning("Kunlik hisobotda e'tibor talab qiladigan holat bor")
+        await _send_digest(context, config.ADMIN_USER_ID)
     except Exception:
         logger.exception("Kunlik hisobotni tayyorlab bo'lmadi")
 
@@ -1199,7 +1218,7 @@ async def digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hours = 24
     if len(parts) > 1 and parts[1].isdigit():
         hours = max(1, min(int(parts[1]), 720))
-    await update.effective_message.reply_text(report.daily_digest(hours)["text"])
+    await _send_digest(context, update.effective_chat.id, hours)
 
 
 @private_only
@@ -1440,13 +1459,16 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_edit(query, "❓ Ноаниқ файллар бўлими:", kb_unmatched())
         return
     if data == "menu:report":
-        await safe_edit(query, "📊 Даврни танланг:", kb_report())
+        await safe_edit(query, "📊 Ҳисобот турини танланг:", kb_report())
         return
     if data.startswith("rep:"):
         period = data.split(":", 1)[1]
         await safe_edit(query, "📊 Тайёрланмоқда...")
-        await _send_report(context, query.message.chat_id, period)
-        await safe_edit(query, "📊 Даврни танланг:", kb_report())
+        if period == "now":
+            await _send_digest(context, query.message.chat_id)
+        else:
+            await _send_report(context, query.message.chat_id, period)
+        await safe_edit(query, "📊 Ҳисобот турини танланг:", kb_report())
         return
     if data == "menu:status":
         await safe_edit(query, "🩺 Tekshirilmoqda...")

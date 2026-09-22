@@ -183,6 +183,141 @@ def daily_digest(hours: int = 24) -> dict:
     }
 
 
+def _digest_rows(hours: int = 24) -> dict:
+    """daily_digest bilan bir xil ma'lumot, lekin jadval uchun qatorlarda."""
+    now = time.time()
+    since = now - hours * 3600
+    sent = [e for e in collect("all")["entries"] if e["sent_at"] >= since]
+    batches = batch_store.all_batches()
+
+    return {
+        "sent": sent,
+        "incomplete": [e for e in sent if e["missing"]],
+        "undelivered": [(c, b) for c, b in batches.items() if b.get("pending_emails")],
+        "waiting": sorted(batches.items(),
+                          key=lambda kv: kv[1].get("created_at", now)),
+        "now": now,
+    }
+
+
+# ---------- Excel ----------
+
+HEAD_FILL = "FF1F4E79"
+BAD_FILL = "FFFCE4E4"
+OK_FILL = "FFE8F5E9"
+
+
+def _style_header(ws, row: int = 1) -> None:
+    from openpyxl.styles import Alignment, Font, PatternFill
+    for cell in ws[row]:
+        if cell.value is None:
+            continue
+        cell.font = Font(bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill("solid", fgColor=HEAD_FILL)
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+    ws.row_dimensions[row].height = 26
+
+
+def _autosize(ws, widths: list) -> None:
+    from openpyxl.utils import get_column_letter
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+
+def to_xlsx(hours: int = 24, period: str = "30", customer: str = "") -> bytes:
+    """
+    Excel hisobot: ikki varaq —
+      "Ҳолат"          - e'tibor talab qiladigan holatlar (chala, yetmagan, kutayotgan)
+      "Юборилганлар"   - yuborilgan partiyalar ro'yxati
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    data = _digest_rows(hours)
+    wb = Workbook()
+
+    # ---------- 1-varaq: HOLAT ----------
+    ws = wb.active
+    ws.title = "Ҳолат"
+    ws.append([f"Ҳисобот — {time.strftime('%d.%m.%Y %H:%M', time.localtime(data['now']))}"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([])
+    ws.append(["Юборилди (партия)", len(data["sent"])])
+    ws.append(["Юборилди (файл)", sum(e["file_count"] for e in data["sent"])])
+    ws.append(["Кутмоқда (партия)", len(data["waiting"])])
+    ws.append(["Чала кетган", len(data["incomplete"])])
+    ws.append(["Хат йетмаган", len(data["undelivered"])])
+    for r in range(3, 8):
+        ws.cell(row=r, column=1).font = Font(bold=True)
+
+    def section(title: str, headers: list, rows: list, fill: str = None):
+        ws.append([])
+        ws.append([title])
+        ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=12)
+        ws.append(headers)
+        _style_header(ws, ws.max_row)
+        if not rows:
+            ws.append(["— йўқ —"])
+            return
+        for row in rows:
+            ws.append(row)
+            if fill:
+                for cell in ws[ws.max_row]:
+                    cell.fill = PatternFill("solid", fgColor=fill)
+
+    section("⚠️ ЧАЛА КЕТГАН", ["Партия", "Мижоз", "Йўқ ҳужжатлар", "Сана"],
+            [[e["display"], e["customer"], ", ".join(e["missing"]),
+              time.strftime("%d.%m %H:%M", time.localtime(e["sent_at"]))]
+             for e in data["incomplete"]], BAD_FILL)
+
+    section("❌ ХАТ ЙЕТМАГАН", ["Партия", "Мижоз", "Манзиллар"],
+            [[b.get("display") or c, b.get("customer") or "",
+              ", ".join(b.get("pending_emails") or [])]
+             for c, b in data["undelivered"]], BAD_FILL)
+
+    section("📦 КУТМОҚДА", ["Партия", "Мижоз", "Фура", "Ҳолат", "Йетишмаяпти", "Соат"],
+            [[b.get("display") or c, b.get("customer") or "", b.get("truck") or "",
+              doc_types.progress_line(b.get("files", [])),
+              ", ".join(doc_types.missing_types(b.get("files", []))) or "тўлиқ",
+              int((data["now"] - b.get("created_at", data["now"])) / 3600)]
+             for c, b in data["waiting"]])
+
+    _autosize(ws, [22, 30, 34, 16, 26, 10])
+    ws.freeze_panes = "A2"
+
+    # ---------- 2-varaq: YUBORILGANLAR ----------
+    ws2 = wb.create_sheet("Юборилганлар")
+    headers = ["Сана", "Вақт", "Партия", "Мижоз", "Фура", "Почта",
+               "Файллар", "Ҳужжатлар", "Йетишмаган", "Мавзу"]
+    ws2.append(headers)
+    _style_header(ws2)
+
+    for e in collect(period, customer)["entries"]:
+        stamp = time.localtime(e["sent_at"])
+        ws2.append([
+            time.strftime("%d.%m.%Y", stamp),
+            time.strftime("%H:%M", stamp),
+            e["display"], e["customer"], e["truck"],
+            ", ".join(e["emails"]), e["file_count"],
+            ", ".join(f["type"] or "?" for f in e["files"]),
+            ", ".join(e["missing"]), e["subject"],
+        ])
+        # Chala ketgan qatorni qizil, to'liqni yashil qilamiz
+        fill = BAD_FILL if e["missing"] else OK_FILL
+        for cell in ws2[ws2.max_row]:
+            cell.fill = PatternFill("solid", fgColor=fill)
+            cell.alignment = Alignment(vertical="top", wrap_text=False)
+
+    _autosize(ws2, [12, 8, 14, 30, 8, 46, 9, 34, 20, 40])
+    ws2.freeze_panes = "A2"
+    if ws2.max_row > 1:
+        ws2.auto_filter.ref = f"A1:J{ws2.max_row}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def to_csv(entries: list) -> bytes:
     """
     Excel'da ochish uchun CSV.
