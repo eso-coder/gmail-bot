@@ -1746,6 +1746,12 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         return
 
     emails = customer_store.get_emails(customer_name)
+    # Oldingi urinishda ba'zi manzillarga yetmagan bo'lsa, FAQAT o'shalarga
+    # yuboramiz - xatni allaqachon olganlarga ikkinchi marta bormasin.
+    pending = batch.get("pending_emails")
+    if pending:
+        emails = [e for e in pending if e in (emails or [])] or pending
+        logger.info("%s: qayta urinish, %d ta manzil qoldi", code, len(emails))
     if not emails:
         msg = (f"⚠️ {customer_name} мижозининг emaili топилмади. "
                f"{display_code} юборилмади — /customer_add билан email қўшинг.")
@@ -1890,9 +1896,26 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
             f"{display_code} → {customer_name} · {len(file_names)} файл"
             + (f" · фура {truck_full}" if truck_full else ""),
         )
-        batch_store.clear_batch(code)
     else:
         history_store.add("batch_failed", f"{display_code} → {customer_name}: юборилмади")
+
+    if failed:
+        # Partiya SAQLANIB TURADI va yetmagan manzillarga qayta urinamiz.
+        # Ilgari bitta manzilga yetsa ham partiya o'chirilar, qolganlari
+        # hujjatlarni umuman olmay qolardi.
+        attempt = batch_store.set_pending_emails(code, list(failed))
+        if attempt <= MAX_SEND_ATTEMPTS:
+            _schedule_send_retry(context, code, notify_chat_id, attempt)
+        else:
+            await notify_admin(
+                context,
+                f"❌ \"{display_code}\" — {len(failed)} та манзилга {attempt} "
+                f"уринишда ҳам йетмади:\n"
+                + "\n".join(f"  • {e}" for e in failed)
+                + f"\n\nПартия сақланиб турибди: /batch_send {code}"
+            )
+    else:
+        batch_store.clear_batch(code)
     logger.info("%s -> %s: yuborildi=%s, xato=%s", code, customer_name, ok, failed)
 
 
@@ -2102,6 +2125,59 @@ ACK_DELAY_SECONDS = 5
 # (INV, SPETS, ST, FITO, AKT, CMR, TIR) oladi, qolganiga umuman tegmaydi.
 
 
+# Turi tanilmagan, lekin ochiq partiyaga tegishli fayllar: {kod: [nomlar]}
+_unknown_files = {}
+UNKNOWN_NOTICE_DELAY = 15
+
+
+async def _note_unknown_file(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                             code: str, filename: str) -> None:
+    """
+    Turi tanilmagan faylni guruhda bir marta eslatadi (albom bo'lib
+    kelganlari birlashtiriladi).
+    """
+    entry = _unknown_files.setdefault(code, {"chat_id": update.effective_chat.id,
+                                             "names": []})
+    if filename not in entry["names"]:
+        entry["names"].append(filename)
+
+    job_queue = getattr(context, "job_queue", None)
+    if job_queue is None:
+        await _send_unknown_notice(context, code)
+        return
+
+    name = f"unknown:{code}"
+    for job in job_queue.get_jobs_by_name(name):
+        job.schedule_removal()
+    job_queue.run_once(_unknown_notice_job, UNKNOWN_NOTICE_DELAY, name=name,
+                       data={"code": code})
+
+
+async def _unknown_notice_job(context: ContextTypes.DEFAULT_TYPE):
+    await _send_unknown_notice(context, (context.job.data or {}).get("code"))
+
+
+async def _send_unknown_notice(context: ContextTypes.DEFAULT_TYPE, code: str) -> None:
+    entry = _unknown_files.pop(code, None)
+    if not entry or not entry["names"]:
+        return
+
+    batch = batch_store.get_batch(code)
+    if not batch:
+        return
+
+    missing = doc_types.missing_types(batch["files"])
+    text = (f"⚠️ \"{batch_display_code(code, batch)}\" — бу файл(лар)нинг "
+            f"ТУРИ АНИҚЛАНМАДИ, шунинг учун ҳисобга олинмади:\n"
+            + "\n".join(f"   • {n}" for n in entry["names"][:10]))
+    if missing:
+        text += (f"\n\nҲозир йетишмаяпти: {', '.join(missing)}\n"
+                 f"Агар шу ҳужжатлардан бири бўлса — номини тўғрилаб "
+                 f"қайта ташланг (масалан: {batch_display_code(code, batch)} "
+                 f"{missing[0]} {batch.get('truck') or ''}).".rstrip() + "")
+    await safe_send(context, entry["chat_id"], text)
+
+
 def _naming_warnings(existing_batch, parsed, doc_type, truck, filename) -> list:
     """
     Fayl nomidagi ehtimoliy xatoliklar haqida ogohlantirishlar.
@@ -2167,6 +2243,12 @@ async def _process_incoming_file(update: Update, context: ContextTypes.DEFAULT_T
     # ham olinmaydi, guruhga xabar ham yozilmaydi. Faqat logga tushadi.
     if doc_type is None:
         logger.info("Turi tanilmagan fayl e'tiborsiz qoldirildi: %s (%s)", filename, code)
+        # Agar SHU KOD bo'yicha ochiq partiya bo'lsa - bu chek yoki tasodifiy
+        # rasm emas, ehtimol nomi xato yozilgan HUJJAT. Jimgina tashlab
+        # yuborish xavfli: aynan shu sabab "UF-850 781.pdf" deklaratsiyasi
+        # yo'qolib, mijozga deklaratsiyasiz xat ketgan edi.
+        if batch_store.get_batch(code):
+            await _note_unknown_file(update, context, code, filename)
         return
 
     # ---- 1. Bu fayl ilgari pochtaga yuborilganmi? ----
@@ -2323,6 +2405,44 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
 # ketma-ket tushadi. Har biriga alohida javob yozmaslik uchun tekshiruv
 # shuncha soniyaga kechiktiriladi va oxirgisi kelgach bir marta bajariladi.
 AUTOSEND_DELAY = 20
+
+
+# Xat yetmagan manzilga shuncha marta qayta urinamiz (tobora kechroq)
+MAX_SEND_ATTEMPTS = 4
+SEND_RETRY_MINUTES = 10
+
+
+def _schedule_send_retry(context: ContextTypes.DEFAULT_TYPE, code: str,
+                         notify_chat_id, attempt: int) -> None:
+    """
+    Xat yetmagan manzillarga keyinroq qayta urinishni rejalashtiradi.
+    Har urinishda kutish vaqti ortadi: 10, 20, 30 daqiqa.
+    """
+    job_queue = getattr(context, "job_queue", None)
+    delay = SEND_RETRY_MINUTES * 60 * attempt
+    if job_queue is None:
+        logger.warning("JobQueue yo'q - %s uchun qayta urinish rejalashtirilmadi", code)
+        return
+
+    name = f"retry:{code}"
+    for job in job_queue.get_jobs_by_name(name):
+        job.schedule_removal()
+    job_queue.run_once(_send_retry_job, delay, name=name,
+                       data={"code": code, "chat_id": notify_chat_id})
+    logger.info("%s: %d daqiqadan keyin qayta urinish rejalashtirildi",
+                code, delay // 60)
+
+
+async def _send_retry_job(context: ContextTypes.DEFAULT_TYPE):
+    data = context.job.data or {}
+    code = data.get("code")
+    try:
+        if batch_store.get_batch(code):
+            # force=True: komplekt to'liqligi birinchi yuborishda tekshirilgan
+            await _finalize_and_send(code, context, notify_chat_id=data.get("chat_id"),
+                                     force=True)
+    except Exception:
+        logger.exception("Qayta urinishda xatolik: %s", code)
 
 
 async def _run_autosend(context: ContextTypes.DEFAULT_TYPE, code: str, chat_id):

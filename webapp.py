@@ -127,6 +127,8 @@ def _collect_state() -> dict:
             "age_hours": round((now - b.get("created_at", now)) / 3600, 1),
             # Deklaratsiya kelgan, kech qolgan hujjat kutilmoqda
             "awaiting": batch_store.is_awaiting(b),
+            # Xat yetmagan manzillar (qayta urinish navbatida)
+            "pending_emails": b.get("pending_emails") or [],
             "files": [{"name": f.get("filename"), "type": f.get("doc_type")} for f in files],
         })
 

@@ -312,6 +312,33 @@ def set_awaiting(code: str, chat_id=None) -> bool:
     return True
 
 
+def set_pending_emails(code: str, emails: list) -> int:
+    """
+    Xat YETIB BORMAGAN manzillarni saqlaydi va urinishlar sonini oshiradi.
+
+    Ilgari kamida bitta manzilga yetsa partiya o'chirilardi - qolganlari
+    esa hujjatlarni UMUMAN olmay qolardi. Endi partiya saqlanib turadi va
+    faqat yetmagan manzillarga qayta urinib ko'riladi.
+
+    Qaytaradi: nechanchi urinish ekani.
+    """
+    data = _load()
+    batch = data.get(code)
+    if not batch:
+        return 0
+    batch["pending_emails"] = list(emails or [])
+    batch["send_attempts"] = int(batch.get("send_attempts") or 0) + 1
+    _save(data)
+    return batch["send_attempts"]
+
+
+def clear_pending_emails(code: str) -> None:
+    data = _load()
+    batch = data.get(code)
+    if batch and batch.pop("pending_emails", None) is not None:
+        _save(data)
+
+
 def is_awaiting(batch: dict) -> bool:
     return bool((batch or {}).get("awaiting_since"))
 

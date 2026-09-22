@@ -33,6 +33,7 @@ import os
 import re
 import smtplib
 import socket
+import time
 import ssl
 from email.message import EmailMessage
 
@@ -42,6 +43,12 @@ logger = logging.getLogger(__name__)
 
 SMTP_HOST = "smtp.gmail.com"
 SMTP_TIMEOUT = 30        # soniya (bloklangan portni uzoq kutmaslik uchun)
+
+# Bitta manzilga shuncha marta urinamiz. Ulanish uzilishi Gmail bilan
+# vaqti-vaqti bilan bo'lib turadi; bitta urinish yetmasa mijoz xatni
+# UMUMAN olmay qolardi.
+SEND_ATTEMPTS = 3
+RETRY_DELAY = 2          # soniya (har urinishda ortib boradi)
 
 # Gmail SMTP bir nechta portda ishlaydi. Ba'zi hostinglar (Railway, Render...)
 # spamning oldini olish uchun chiquvchi SMTP portlarini bloklaydi - shunda
@@ -283,35 +290,84 @@ def send_batch_to_multiple(emails: list, subject: str, body_text: str, file_path
     results = {}
     try:
         for email in emails:
-            try:
-                message = copy.deepcopy(base_message)
-                del message["To"]
-                message["To"] = email
-                server.send_message(message)
-                results[email] = None
-            except smtplib.SMTPServerDisconnected as e:
-                # Ulanish uzilib qolgan - qayta ulanib, shu manzilga yana urinamiz
-                logger.warning("SMTP ulanishi uzildi, qayta ulanmoqda: %s", e)
-                try:
-                    server = _connect()
-                    message = copy.deepcopy(base_message)
-                    del message["To"]
-                    message["To"] = email
-                    server.send_message(message)
-                    results[email] = None
-                except Exception as e2:
-                    logger.exception("%s manziliga xat yuborilmadi", email)
-                    results[email] = str(e2)[:200]
-            except Exception as e:
-                logger.exception("%s manziliga xat yuborilmadi", email)
-                results[email] = str(e)[:200]
+            results[email] = _send_one(server, base_message, email)
+            if results[email] is not None and _is_connection_error(results[email]):
+                # Ulanish yaroqsiz bo'lib qolgan - keyingi manzillar ham
+                # shu sababdan yiqilmasligi uchun uni yangilaymiz
+                server = _reconnect(server)
     finally:
-        try:
-            server.quit()
-        except Exception:
-            try:
-                server.close()
-            except Exception:
-                pass
+        _close(server)
 
     return results
+
+
+def _is_connection_error(text: str) -> bool:
+    low = (text or "").lower()
+    return any(k in low for k in (
+        "not connected", "disconnect", "connection", "timed out", "broken pipe"))
+
+
+def _close(server) -> None:
+    if server is None:
+        return
+    try:
+        server.quit()
+    except Exception:
+        try:
+            server.close()
+        except Exception:
+            pass
+
+
+def _reconnect(server):
+    """Eski ulanishni yopib, yangisini ochadi. Bo'lmasa None qaytaradi."""
+    _close(server)
+    try:
+        return _connect()
+    except Exception as e:
+        logger.warning("SMTP qayta ulanmadi: %s", e)
+        return None
+
+
+def _send_one(server, base_message, email: str):
+    """
+    Bitta manzilga yuboradi. Ulanish uzilganda QAYTA ULANIB, bir necha
+    marta urinadi - ilgari bitta urinish bo'lgani uchun "Server not
+    connected" holatida mijoz xatni umuman olmay qolardi.
+
+    Qaytaradi: None (yuborildi) yoki xato matni.
+    """
+    last_error = "Номаълум хатолик"
+
+    for attempt in range(1, SEND_ATTEMPTS + 1):
+        if server is None:
+            server = _reconnect(None)
+            if server is None:
+                last_error = "SMTP серверига уланиб бўлмади"
+                time.sleep(RETRY_DELAY * attempt)
+                continue
+        try:
+            message = copy.deepcopy(base_message)
+            del message["To"]
+            message["To"] = email
+            server.send_message(message)
+            if attempt > 1:
+                logger.info("%s manziliga %d-urinishda yuborildi", email, attempt)
+            return None
+        except smtplib.SMTPRecipientsRefused as e:
+            # Manzil xato - qayta urinish foydasiz
+            logger.warning("%s manzili rad etildi: %s", email, e)
+            return f"Манзил рад этилди: {str(e)[:150]}"
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError,
+                socket.timeout, OSError) as e:
+            last_error = str(e)[:200]
+            logger.warning("%s: %d-urinish muvaffaqiyatsiz (%s), qayta ulanmoqda",
+                           email, attempt, last_error)
+            server = _reconnect(server)
+            time.sleep(RETRY_DELAY * attempt)
+        except Exception as e:
+            last_error = str(e)[:200]
+            logger.exception("%s manziliga xat yuborilmadi", email)
+            time.sleep(RETRY_DELAY)
+
+    return last_error

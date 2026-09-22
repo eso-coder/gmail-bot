@@ -333,6 +333,10 @@ function drawBatches(){
       + '</div><span class="pill ' + cls + '">' + esc(b.progress) + "</span></div>"
       + '<div class="bar">' + bar + "</div>"
       + '<div class="tags">' + tags + "</div>"
+      + (b.pending_emails && b.pending_emails.length
+          ? '<div class="hintline" style="color:var(--danger)">📨 '
+            + b.pending_emails.length + " манзилга хат йетмади — қайта уринилмоқда</div>"
+          : "")
       + (full ? ""
           : b.awaiting
             ? '<div class="hintline" style="color:var(--ok)">📌 Декларация олинган — '
