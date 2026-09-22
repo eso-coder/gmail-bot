@@ -45,7 +45,8 @@ EXTENSION_PATTERN = re.compile(r"\.[A-Za-z0-9]{2,5}$")
 
 # Bu so'zlardan biri fayl nomida bo'lsa ham, deklaratsiya deb hisoblanadi -
 # hatto fayl nomida kod dan boshqa matn bo'lsa ham (masalan "NG-2 DEKLARATSIYA.pdf")
-DECLARATION_KEYWORDS = ["DEKL", "DECLARATION", "GTD", "ГТД", "ДЕКЛАРАЦИЯ", "DEKLARATSIYA"]
+DECLARATION_KEYWORDS = ["DEKL", "DECLARATION", "GTD", "ГТД", "ДЕКЛАРАЦИЯ",
+                        "DEKLARATSIYA", "KTD", "КТД", "ТАМОЖ"]
 
 
 def _has_declaration_keyword(filename: str) -> bool:
@@ -90,8 +91,13 @@ def parse(filename: str):
     remainder = name_no_ext[:start] + name_no_ext[end:]
     remainder_clean = re.sub(r"[\s\-_.]+", "", remainder)
 
+    # YAKUNIY DEKLARATSIYA nomlashning ikki uslubi ham qabul qilinadi:
+    #     "UF-850.pdf"       - faqat kod
+    #     "UF-850 781.pdf"   - kod + fura raqami
+    # Qoldiqda HARF bo'lsa - bu deklaratsiya emas. Shu shart tufayli
+    # "dozvol_UZ2026_5194.pdf" (ruxsatnoma) kabi fayllar tegmay qoladi.
     is_declaration = (
-        (remainder_clean == "" and extension == "pdf")
+        (extension == "pdf" and (remainder_clean == "" or remainder_clean.isdigit()))
         or _has_declaration_keyword(filename)
     )
 

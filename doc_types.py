@@ -24,8 +24,12 @@ yo'qolib ketmasin, lekin xato ham sezilmay qolmasin.
 
 import re
 
-# Komplekt to'liq hisoblanishi uchun kerak bo'lgan hujjatlar (ko'rsatish tartibi)
-REQUIRED_ORDER = ["INV", "SPETS", "ST", "FITO", "AKT", "CMR", "TIR"]
+# Komplekt to'liq hisoblanishi uchun kerak bo'lgan hujjatlar (ko'rsatish tartibi).
+#
+# DEKL (yakuniy deklaratsiya) ham SHU RO'YXATDA. Ilgari u yo'q edi va bot
+# deklaratsiyasiz komplektni ham "7/7 to'liq" deb hisoblardi - natijada
+# mijozga eng muhim hujjatsiz xat ketib qolardi.
+REQUIRED_ORDER = ["INV", "SPETS", "ST", "FITO", "AKT", "CMR", "TIR", "DEKL"]
 
 # Skaner qilinadigan hujjatlar - ular albom bo'lib tashlanadi va nomida
 # fura raqami BO'LISHI kerak: "NGS-25 CMR 565.jpg"

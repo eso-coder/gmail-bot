@@ -344,7 +344,13 @@ function drawBatches(){
       + "<select onchange=\"act('batch_assign',{code:'" + js(b.code) + "',name:this.value})\">"
       +   '<option value="">— танланг —</option>' + opts + "</select>"
       + '<div class="acts">'
-      +   '<button class="btn" onclick="act(\'batch_send\',{code:\'' + js(b.code) + "'},'" + ask + "')\">📤 Юбориш</button>"
+      // Комплект чала бўлса юбориш тугмаси ишламайди — айнан шу тугма
+      // босилиб, мижозларга декларациясиз хат кетган эди.
+      +   (full
+            ? '<button class="btn" onclick="act(\'batch_send\',{code:\'' + js(b.code)
+              + "'},'" + ask + "')\">📤 Юбориш</button>"
+            : '<button class="btn ghost" onclick="toast(\'Комплект тўлиқ эмас: '
+              + js(b.missing.join(", ")) + '\', true)">🔒 Комплект чала</button>')
       +   '<button class="btn dngr" onclick="act(\'batch_cancel\',{code:\'' + js(b.code) + "'},'Бекор қилинсинми? Файллар ўчирилади.')\">🗑</button>"
       + "</div></div>";
   }).join("");

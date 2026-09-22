@@ -1102,14 +1102,33 @@ async def batch_assign_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 @private_only
 async def batch_send_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Format: /batch_send KOD - deklaratsiyani kutmasdan qo'lda yuborish"""
+    """
+    /batch_send KOD         - qo'lda yuborish (komplekt to'liq bo'lsa)
+    /batch_send KOD force   - CHALA komplektni majburan yuborish
+
+    Majburan yuborishga faqat bot EGASI haqli: chala komplekt mijozga
+    ketishi jiddiy oqibat, shuning uchun uni tasodifan bosib bo'lmasligi
+    kerak (shu sabab tugma emas, aniq yozib beriladigan buyruq).
+    """
     message = update.effective_message
-    payload = (message.text or "").split(maxsplit=1)
+    payload = (message.text or "").split()
     if len(payload) < 2:
-        await message.reply_text("Format: /batch_send KOD")
+        await message.reply_text(
+            "Формат: /batch_send КОД\n"
+            "Комплект чала бўлса ҳам юбориш (фақат бот эгаси): "
+            "/batch_send КОД force"
+        )
         return
+
+    force = len(payload) > 2 and payload[-1].lower() in ("force", "majburan", "мажбуран")
     code = re.sub(r"[^A-Za-z0-9А-Яа-я]", "", payload[1]).upper()
-    await _finalize_and_send(code, context, notify_chat_id=update.effective_chat.id)
+
+    if force and not access_store.is_owner(update.effective_user.id):
+        await message.reply_text("⛔ Чала комплектни фақат бот эгаси юбора олади.")
+        return
+
+    await _finalize_and_send(code, context, notify_chat_id=update.effective_chat.id,
+                             force=force)
 
 
 @private_only
@@ -1322,13 +1341,24 @@ async def _group_question_router(update: Update, context: ContextTypes.DEFAULT_T
             )
             return
 
+        # Eski xabarlarda bu tugma hali turibdi. Chala komplekt mijozga
+        # ketishi jiddiy oqibat - shuning uchun faqat bot egasi.
+        if not access_store.is_owner(update.effective_user.id):
+            await safe_edit(
+                query,
+                "⛔ Чала комплектни юборишга фақат бот эгаси ҳақли.\n"
+                "Йетишмаган ҳужжатни гуруҳга ташланг — бот ўзи юборади."
+            )
+            return
+
         missing = doc_types.missing_types(batch["files"])
         await safe_edit(
             query,
             f"⚠️ \"{display}\" ТЎЛИҚ ЭМАС ҳолда юборилмоқда.\n"
-            f"Етишмаяпти: {', '.join(missing) or '—'}\nJavob berdi: {who}"
+            f"Етишмаяпти: {', '.join(missing) or '—'}\nЖавоб берди: {who}"
         )
-        await _finalize_and_send(code, context, notify_chat_id=update.effective_chat.id)
+        await _finalize_and_send(code, context, notify_chat_id=update.effective_chat.id,
+                                 force=True)
         return
 
 
@@ -1669,7 +1699,8 @@ async def text_input_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------- Hujjatni qabul qilish, yig'ish va deklaratsiyada yuborish ----------
 
-async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, notify_chat_id=None):
+async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, notify_chat_id=None,
+                             force: bool = False):
     batch = batch_store.get_batch(code)
     if not batch or not batch.get("files"):
         await safe_send(context, notify_chat_id, f"\"{code}\" кодли партия топилмади ёки бўш.")
@@ -1680,6 +1711,27 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         return
 
     display_code = batch_display_code(code, batch)
+
+    # ---- YAGONA TO'SIQ: chala komplekt mijozga KETMAYDI ----
+    #
+    # Yuborishning bir necha yo'li bor (deklaratsiya, /batch_send, Mini App,
+    # avtomatik yuborish). Ilgari tekshiruv faqat deklaratsiya yo'lida edi,
+    # qolganlari komplektga UMUMAN qaramasdi - shu sabab mijozlarga chala
+    # hujjatlar ketgan. Endi tekshiruv shu yerda, hamma yo'l uchun bitta.
+    missing = doc_types.missing_types(batch["files"])
+    if missing and not force:
+        logger.warning("%s YUBORILMADI - komplekt to'liq emas: %s", code, missing)
+        await safe_send(
+            context, notify_chat_id,
+            f"🛑 \"{display_code}\" ЮБОРИЛМАДИ — комплект тўлиқ эмас "
+            f"[{doc_types.progress_line(batch['files'])}]\n"
+            f"Йетишмаяпти: {', '.join(doc_types.title(t) for t in missing)}\n\n"
+            f"Йетишмаган ҳужжатлар гуруҳга ташланса, бот ўзи юборади."
+        )
+        return
+
+    if missing:
+        logger.warning("%s МАЖБУРАН yuborilmoqda, yetishmayapti: %s", code, missing)
 
     customer_name = batch.get("customer")
     if not customer_name:
@@ -1787,6 +1839,14 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
     # admin'ning shaxsiy chatiga boradi; guruhda ortiqcha matn kerak emas.
     if ok:
         group_summary = f"✅ {display_code} — Почтага юборилди"
+        # Chala ketgan bo'lsa buni guruh KO'RISHI shart. Ilgari bir qatorli
+        # xabar tufayli chala yuborilgani sezilmay qolardi.
+        if missing_docs:
+            group_summary = (
+                f"⚠️ {display_code} — почтага юборилди, лекин КОМПЛЕКТ ТЎЛИҚ ЭМАС\n"
+                f"Хатда йўқ: {', '.join(doc_types.title(t) for t in missing_docs)}\n"
+                f"Йетишмаган ҳужжатларни топиб, қайта юбориш керак."
+            )
         if failed:
             group_summary += "\n⚠️ Баъзи манзилларга йетмади, админ хабардор қилинди."
     else:
@@ -2216,8 +2276,10 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
         # Fura raqami ikkalasida bir xil bo'lishi - eng ishonchli belgi.
         suspect_code, suspect_types = _find_misnamed(code, batch, missing)
 
-        buttons = [[InlineKeyboardButton("⚠️ Барибир ҳозир юборилсин",
-                                         callback_data=f"force:yes:{_tok(code)}")]]
+        # DIQQAT: bu yerda "baribir yuborilsin" tugmasi YO'Q.
+        # U tasodifan bosilib, mijozlarga chala komplekt ketib qolgan edi.
+        # Majburan yuborish endi faqat bot egasida: /batch_send KOD force
+        buttons = []
         hint = ""
         if suspect_code:
             hint = (f"\n\n🔎 <b>{html.escape(format_code_display(suspect_code))}</b> партиясида "
@@ -2239,8 +2301,8 @@ async def _on_declaration(update: Update, context: ContextTypes.DEFAULT_TYPE, co
             hint +
             f"\n\n📌 Декларация олинди. Йетишмаган ҳужжатни ташласангиз — "
             f"бот ўзи почтага юборади, декларацияни қайта ташлаш шарт эмас.\n"
-            f"Кутмасдан ҳозир юбормоқчи бўлсангиз — қуйидаги тугма.",
-            reply_markup=InlineKeyboardMarkup(buttons),
+            f"⛔ Комплект тўлиқ бўлмагунча почтага ЮБОРИЛМАЙДИ.",
+            reply_markup=InlineKeyboardMarkup(buttons) if buttons else None,
             parse_mode="HTML",
         )
         await notify_admin(

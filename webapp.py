@@ -253,8 +253,15 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
 
     if action == "batch_send":
         code = data.get("code", "")
-        if not batch_store.get_batch(code):
-            return {"error": "Partiya topilmadi"}
+        batch = batch_store.get_batch(code)
+        if not batch:
+            return {"error": "Партия топилмади"}
+        # Mini App'dan CHALA komplektni yuborib bo'lmaydi. Aynan shu tugma
+        # bosilib, mijozlarga deklaratsiyasiz xat ketgan edi.
+        missing = doc_types.missing_types(batch.get("files", []))
+        if missing:
+            return {"error": "Комплект тўлиқ эмас, юборилмади. Йетишмаяпти: "
+                             + ", ".join(missing)}
         await ctx["send_batch"](code)
         return {"ok": True, "message": f"{code} юбориш бошланди — натижани чатда кўринг"}
 
