@@ -1755,10 +1755,25 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         await safe_send(context, notify_chat_id, f"\"{code}\" кодли партия топилмади ёки бўш.")
         return
 
+    # ---- TAKRORIY YUBORISHDAN HIMOYA ----
+    #
+    # Belgi DARHOL qo'yiladi. Ilgari u faqat pochta chaqiruvidan oldin
+    # qo'yilardi, orada esa fayllarni yuklab olish (await) bor edi - shu
+    # oraliqda ikkinchi chaqiruv tekshiruvdan o'tib ketardi va mijoz BIR
+    # XIL xatni ikki marta olardi. (NGS-102: avtomatik yuborish ishlayotganda
+    # deklaratsiya qayta tashlangan va ikkinchi yuborish boshlanib ketgan.)
     if code in _sending_now:
         logger.info("%s allaqachon yuborilmoqda, takroriy so'rov e'tiborsiz qoldirildi", code)
         return
+    _sending_now.add(code)
+    try:
+        await _do_finalize_and_send(code, batch, context, notify_chat_id, force)
+    finally:
+        _sending_now.discard(code)
 
+
+async def _do_finalize_and_send(code: str, batch: dict, context: ContextTypes.DEFAULT_TYPE,
+                                notify_chat_id, force: bool):
     display_code = batch_display_code(code, batch)
 
     # ---- YAGONA TO'SIQ: chala komplekt mijozga KETMAYDI ----
@@ -1861,9 +1876,8 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
             f"ўқилмади, оддий мавзу ишлатилди.\nХат барибир юборилди."
         )
 
-    _sending_now.add(code)
     try:
-        # Gmail API sinxron ishlaydi - alohida oqimda bajaramiz, aks holda
+        # Gmail sinxron ishlaydi - alohida oqimda bajaramiz, aks holda
         # katta ilovalar yuborilayotganda bot butunlay "muzlab" qolardi
         results = await asyncio.to_thread(
             gmail_sender.send_batch_to_multiple,
@@ -1879,8 +1893,6 @@ async def _finalize_and_send(code: str, context: ContextTypes.DEFAULT_TYPE, noti
         if notify_chat_id != config.ADMIN_USER_ID:
             await notify_admin(context, msg)
         return
-    finally:
-        _sending_now.discard(code)
 
     ok = [e for e, err in results.items() if err is None]
     failed = {e: err for e, err in results.items() if err is not None}

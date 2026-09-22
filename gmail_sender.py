@@ -290,21 +290,16 @@ def send_batch_to_multiple(emails: list, subject: str, body_text: str, file_path
     results = {}
     try:
         for email in emails:
-            results[email] = _send_one(server, base_message, email)
-            if results[email] is not None and _is_connection_error(results[email]):
-                # Ulanish yaroqsiz bo'lib qolgan - keyingi manzillar ham
-                # shu sababdan yiqilmasligi uchun uni yangilaymiz
-                server = _reconnect(server)
+            # MUHIM: _send_one ichida qayta ulanish bo'lishi mumkin, shuning
+            # uchun u YANGI ulanishni ham qaytaradi. Ilgari faqat xato
+            # qaytarardi va bu yerda eski (yopilgan) ulanish qolib ketardi -
+            # natijada HAR BIR keyingi manzil "please run connect() first"
+            # bilan birinchi urinishda yiqilib, bekorga qayta ulanardi.
+            results[email], server = _send_one(server, base_message, email)
     finally:
         _close(server)
 
     return results
-
-
-def _is_connection_error(text: str) -> bool:
-    low = (text or "").lower()
-    return any(k in low for k in (
-        "not connected", "disconnect", "connection", "timed out", "broken pipe"))
 
 
 def _close(server) -> None:
@@ -335,7 +330,7 @@ def _send_one(server, base_message, email: str):
     marta urinadi - ilgari bitta urinish bo'lgani uchun "Server not
     connected" holatida mijoz xatni umuman olmay qolardi.
 
-    Qaytaradi: None (yuborildi) yoki xato matni.
+    Qaytaradi: (xato_matni yoki None, ishlatilgan_ulanish)
     """
     last_error = "Номаълум хатолик"
 
@@ -353,11 +348,11 @@ def _send_one(server, base_message, email: str):
             server.send_message(message)
             if attempt > 1:
                 logger.info("%s manziliga %d-urinishda yuborildi", email, attempt)
-            return None
+            return None, server
         except smtplib.SMTPRecipientsRefused as e:
             # Manzil xato - qayta urinish foydasiz
             logger.warning("%s manzili rad etildi: %s", email, e)
-            return f"Манзил рад этилди: {str(e)[:150]}"
+            return f"Манзил рад этилди: {str(e)[:150]}", server
         except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError,
                 socket.timeout, OSError) as e:
             last_error = str(e)[:200]
@@ -370,4 +365,4 @@ def _send_one(server, base_message, email: str):
             logger.exception("%s manziliga xat yuborilmadi", email)
             time.sleep(RETRY_DELAY)
 
-    return last_error
+    return last_error, server
