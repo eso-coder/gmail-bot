@@ -20,7 +20,7 @@ import os
 import re
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, time as dtime, timedelta, timezone
 
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, WebAppInfo,
@@ -1176,6 +1176,32 @@ async def _send_report(context: ContextTypes.DEFAULT_TYPE, chat_id, period: str,
         await safe_send(context, chat_id, f"⚠️ CSV файлни юбориб бўлмади: {e}")
 
 
+# Kunlik hisobot shu vaqtda yuboriladi (Toshkent vaqti bilan)
+DIGEST_HOUR = 9
+LOCAL_TZ = timezone(timedelta(hours=5))
+
+
+async def daily_digest_job(context: ContextTypes.DEFAULT_TYPE):
+    """Har kuni ertalab: kecha nima bo'ldi va nimaga e'tibor kerak."""
+    try:
+        digest = report.daily_digest()
+        await notify_admin(context, digest["text"])
+        if digest["alarm"]:
+            logger.warning("Kunlik hisobotda e'tibor talab qiladigan holat bor")
+    except Exception:
+        logger.exception("Kunlik hisobotni tayyorlab bo'lmadi")
+
+
+@private_only
+async def digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/digest [soat] — hozirgi holat hisoboti (standart: 24 soat)"""
+    parts = (update.effective_message.text or "").split()
+    hours = 24
+    if len(parts) > 1 and parts[1].isdigit():
+        hours = max(1, min(int(parts[1]), 720))
+    await update.effective_message.reply_text(report.daily_digest(hours)["text"])
+
+
 @private_only
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -1236,6 +1262,7 @@ HELP_TEXT = (
     "/group_add — ШУ гуруҳни қўшиш (гуруҳда ёзилади)\n"
     "/group_remove [ID] — гуруҳни олиб ташлаш\n"
     "/report [давр] [мижоз] — юборилган партиялар ҳисоботи (CSV)\n"
+    "/digest [соат] — назорат: чала кетган, хат йетмаган, кутаётганлар\n"
     "    масалан: /report 7  ·  /report all GALLAKTIKA\n"
     "/status — бот ва созламалар ҳолати\n"
     "/gmail_check — Gmail рухсати ишлаяптими, текшириш\n"
@@ -3024,6 +3051,7 @@ def main():
     app.add_handler(CommandHandler("myid", myid_command))
     app.add_handler(CommandHandler("chatid", chatid_command))
     app.add_handler(CommandHandler("report", report_command))
+    app.add_handler(CommandHandler("digest", digest_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("gmail_check", gmail_check_command))
@@ -3076,6 +3104,12 @@ def main():
             gmail_health_job,
             interval=timedelta(hours=GMAIL_CHECK_INTERVAL_HOURS),
             first=timedelta(hours=GMAIL_CHECK_INTERVAL_HOURS),
+        )
+        # Har kuni ertalab nazorat hisoboti
+        app.job_queue.run_daily(
+            daily_digest_job,
+            time=dtime(hour=DIGEST_HOUR, minute=0, tzinfo=LOCAL_TZ),
+            name="daily_digest",
         )
     else:
         logger.warning(

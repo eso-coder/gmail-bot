@@ -11,9 +11,14 @@ import csv
 import io
 import time
 
+import batch_store
 import doc_types
 import sent_store
 import session_store
+import unmatched_store
+
+# Shuncha soatdan ortiq kutayotgan partiya kunlik hisobotda eslatiladi
+STALE_DIGEST_HOURS = 24
 
 
 def _typed_files(files: list) -> list:
@@ -111,6 +116,70 @@ def collect(period: str = "30", customer: str = "") -> dict:
             "customers": len({e["customer"] for e in entries if e["customer"]}),
             "emails": len({addr for e in entries for addr in e["emails"]}),
         },
+    }
+
+
+def daily_digest(hours: int = 24) -> dict:
+    """
+    Kunlik nazorat hisoboti: "kecha nima bo'ldi va nimaga e'tibor kerak".
+
+    Qaytaradi: {"text": ..., "alarm": bool}
+    `alarm` - e'tibor talab qiladigan holat bormi (chala ketgan, xat
+    yetmagan yoki uzoq kutayotgan partiya).
+    """
+    now = time.time()
+    since = now - hours * 3600
+
+    sent = [e for e in collect("all")["entries"] if e["sent_at"] >= since]
+    incomplete = [e for e in sent if e["missing"]]
+
+    batches = batch_store.all_batches()
+    undelivered = [(c, b) for c, b in batches.items() if b.get("pending_emails")]
+    stale = [(c, b) for c, b in batches.items()
+             if (now - b.get("created_at", now)) > STALE_DIGEST_HOURS * 3600]
+    ready = [(c, b) for c, b in batches.items()
+             if not doc_types.missing_types(b.get("files", []))]
+
+    lines = [f"🌅 Кунлик ҳисобот ({hours} соат)", ""]
+    lines.append(f"📨 Юборилди: {len(sent)} партия · "
+                 f"{sum(e['file_count'] for e in sent)} файл")
+    lines.append(f"📦 Кутмоқда: {len(batches)} партия")
+
+    if incomplete:
+        lines += ["", f"⚠️ ЧАЛА КЕТГАН — {len(incomplete)} та:"]
+        for e in incomplete:
+            lines.append(f"   • {e['display']} → {e['customer'] or '?'} "
+                         f"(йўқ: {', '.join(e['missing'])})")
+
+    if undelivered:
+        lines += ["", f"❌ ХАТ ЙЕТМАГАН — {len(undelivered)} та:"]
+        for code, b in undelivered:
+            lines.append(f"   • {b.get('display') or code}: "
+                         f"{', '.join(b['pending_emails'])}")
+
+    if ready:
+        lines += ["", f"✅ Тўлиқ, юборишга тайёр — {len(ready)} та:"]
+        for code, b in ready:
+            lines.append(f"   • {b.get('display') or code} — /batch_send {code}")
+
+    if stale:
+        lines += ["", f"⏳ {STALE_DIGEST_HOURS} соатдан ортиқ кутмоқда — {len(stale)} та:"]
+        for code, b in stale:
+            missing = doc_types.missing_types(b.get("files", []))
+            elapsed = int((now - b.get("created_at", now)) / 3600)
+            lines.append(f"   • {b.get('display') or code} ({elapsed} соат) "
+                         f"йетишмаяпти: {', '.join(missing) or '—'}")
+
+    unmatched_count = len(unmatched_store.all_unmatched())
+    if unmatched_count:
+        lines += ["", f"❓ Ноаниқ файллар: {unmatched_count} та"]
+
+    if not (incomplete or undelivered or stale):
+        lines += ["", "👍 Муаммо йўқ."]
+
+    return {
+        "text": "\n".join(lines),
+        "alarm": bool(incomplete or undelivered),
     }
 
 

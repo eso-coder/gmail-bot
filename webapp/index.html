@@ -306,7 +306,19 @@ function drawBatches(){
     return;
   }
   const names = S.customers.map(c => c.name);
-  el.innerHTML = S.batches.map(b => {
+
+  // Юқорида қисқа ҳолат: нечтаси тайёр, нечтасида хат йетмаган
+  const ready = S.batches.filter(b => !b.missing.length).length;
+  const stuck = S.batches.filter(b => (b.pending_emails || []).length).length;
+  const waiting = S.batches.filter(b => b.awaiting).length;
+  const head = '<div class="card"><div class="nums">'
+    + num(S.batches.length, "кутмоқда")
+    + num(ready, "тўлиқ")
+    + num(waiting, "декларация бор")
+    + (stuck ? num(stuck, "хат йетмади") : "")
+    + "</div></div>";
+
+  el.innerHTML = head + S.batches.map(b => {
     const done = S.required.length - b.missing.length;
     const cls  = b.missing.length === 0 ? "ok" : (done >= 4 ? "mid" : "low");
     const bar  = S.required.map(t =>
