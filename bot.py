@@ -172,12 +172,28 @@ def _resolve(token: str, candidates) -> str:
 
 # ---------- Tugmali menyu (inline keyboard) ----------
 
+def _webapp_url() -> str:
+    """
+    Mini App havolasiga sahifa versiyasini qo'shadi ("?v=...").
+
+    Telegram Mini App'ni QATTIQ keshlaydi: kod yangilangandan keyin ham
+    eski sahifani ko'rsatib turadi. Havola o'zgarsa, kesh ham yangilanadi.
+    Versiya sifatida index.html ning oxirgi o'zgarish vaqti olinadi.
+    """
+    try:
+        stamp = int(os.path.getmtime(os.path.join(webapp.WEB_DIR, "index.html")))
+    except OSError:
+        return WEBAPP_URL
+    sep = "&" if "?" in WEBAPP_URL else "?"
+    return f"{WEBAPP_URL}{sep}v={stamp}"
+
+
 def kb_main() -> InlineKeyboardMarkup:
     rows = []
     if WEBAPP_URL:
         # Mini App - jadval ko'rinishidagi boshqaruv paneli
         rows.append([InlineKeyboardButton("🖥 Бошқарув панели",
-                                          web_app=WebAppInfo(url=WEBAPP_URL))])
+                                          web_app=WebAppInfo(url=_webapp_url()))])
     return InlineKeyboardMarkup(rows + [
         [InlineKeyboardButton("👥 Мижозлар", callback_data="menu:customers")],
         [InlineKeyboardButton("📦 Партиялар", callback_data="menu:batches")],

@@ -369,7 +369,15 @@ def create_app(ctx) -> web.Application:
         path = os.path.join(WEB_DIR, "index.html")
         if not os.path.exists(path):
             return web.Response(text="index.html топилмади", status=404)
-        return web.FileResponse(path)
+        # Telegram Mini App sahifani KESHLAB qo'yadi va yangilanishdan keyin
+        # ham eski tugmalarni ko'rsatib turadi. Shu sabab keshlashni
+        # butunlay o'chiramiz - sahifa kichkina, har safar yuklansa ham
+        # sezilmaydi.
+        return web.FileResponse(path, headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        })
 
     async def api_state(request):
         try:
