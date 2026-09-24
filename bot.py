@@ -3018,11 +3018,12 @@ async def _post_init(app: Application):
 async def _start_webapp(app: Application):
     """Mini App serverini bot bilan bir jarayonda ishga tushiradi."""
 
-    async def send_batch(code: str):
+    async def send_batch(code: str, force: bool = False):
         class _Ctx:
             bot = app.bot
             job_queue = app.job_queue
-        await _finalize_and_send(code, _Ctx(), notify_chat_id=config.ADMIN_USER_ID)
+        await _finalize_and_send(code, _Ctx(), notify_chat_id=config.ADMIN_USER_ID,
+                                 force=force)
 
     class _WebAppCtx:
         """_send_report kabi funksiyalar `context.bot` ni kutadi."""

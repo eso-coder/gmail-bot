@@ -45,6 +45,7 @@ ICONS = {
     "doc_edited": "✏️",
     "doc_moved": "↔️",
     "batch_merge": "🔗",
+    "batch_forced": "⚠️",
 }
 
 

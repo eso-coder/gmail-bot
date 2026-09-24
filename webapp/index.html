@@ -365,8 +365,8 @@ function drawBatches(){
       +   (full
             ? '<button class="btn" onclick="act(\'batch_send\',{code:\'' + js(b.code)
               + "'},'" + ask + "')\">📤 Юбориш</button>"
-            : '<button class="btn ghost" onclick="toast(\'Комплект тўлиқ эмас: '
-              + js(b.missing.join(", ")) + '\', true)">🔒 Комплект чала</button>')
+            : '<button class="btn ghost" onclick="askForce(\'' + js(b.code)
+              + '\')">⚠️ Чала ҳолда юбориш</button>')
       +   '<button class="btn dngr" onclick="act(\'batch_cancel\',{code:\'' + js(b.code) + "'},'Бекор қилинсинми? Файллар ўчирилади.')\">🗑</button>"
       + "</div></div>";
   }).join("");
@@ -432,6 +432,48 @@ async function uploadFile(input, code, type){
     input.value = "";
     toast(e.message, true); buzz("error");
   }
+}
+
+/* Чала комплектни юбориш — ИККИ БОСҚИЧЛИ.
+   Тугма дарҳол юбормайди: аввал нима йетишмаётганини кўрсатади ва алоҳида
+   тасдиқ сўрайди. Илгари оддий тугма бўлиб, тасодифан босилиб мижозларга
+   деклaрaциясиз хат кетган эди. */
+function askForce(code){
+  const b = S.batches.find(x => x.code === code);
+  if (!b) return;
+  if (!b.customer){
+    toast("Аввал мижозни белгиланг", true);
+    return;
+  }
+
+  const noDecl = b.missing.includes("DEKL");
+  showSheet(
+      '<div class="name">⚠️ Чала ҳолда юбориш</div>'
+    + '<div class="meta" style="margin-bottom:14px">' + esc(b.display)
+    + " → " + esc(b.customer) + "</div>"
+    + '<div class="card" style="background:color-mix(in srgb,var(--danger) 10%,transparent)">'
+    +   '<div class="name" style="font-size:14px;color:var(--danger)">'
+    +     "Мижозга БУ ҲУЖЖАТЛАРСИЗ кетади:</div>"
+    +   '<div class="tags" style="margin-top:9px">'
+    +     b.missing.map(t => '<span class="tag no">' + t + "</span>").join("")
+    +   "</div>"
+    +   (noDecl
+        ? '<div class="meta" style="color:var(--danger);margin-top:10px">'
+          + "❗ Декларация йўқ — мижоз уни олмайди.</div>"
+        : "")
+    + "</div>"
+    + '<div class="meta">Юборилгач партия ёпилади. Кейин йетишмаган ҳужжат '
+    + "келса, уни алоҳида юборишга тўғри келади.</div>"
+    + '<div class="acts">'
+    +   '<button class="btn dngr" onclick="doForce(\'' + js(code) + '\')">'
+    +     "Ҳа, чала ҳолда юборилсин</button>"
+    +   '<button class="btn ghost" onclick="closeSheet()">Бекор</button>'
+    + "</div>");
+}
+
+function doForce(code){
+  closeSheet();
+  act("batch_send", {code: code, force: true});
 }
 
 function showSheet(html){

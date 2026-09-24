@@ -258,13 +258,24 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
         batch = batch_store.get_batch(code)
         if not batch:
             return {"error": "Партия топилмади"}
-        # Mini App'dan CHALA komplektni yuborib bo'lmaydi. Aynan shu tugma
+        # Chala komplektni yuborish MUMKIN, lekin faqat ATAYLAB: Mini App
+        # avval qaysi hujjat yo'qligini ko'rsatib, alohida tasdiq so'raydi.
+        # Tasodifan bosilib ketmasligi uchun shunday - ilgari oddiy tugma
         # bosilib, mijozlarga deklaratsiyasiz xat ketgan edi.
         missing = doc_types.missing_types(batch.get("files", []))
-        if missing:
+        force = bool(data.get("force"))
+        if missing and not force:
             return {"error": "Комплект тўлиқ эмас, юборилмади. Йетишмаяпти: "
                              + ", ".join(missing)}
-        await ctx["send_batch"](code)
+
+        if missing:
+            who = ctx.get("user_name") or str(ctx.get("user_id"))
+            logger.warning("Mini App: %s CHALA komplektni majburan yubormoqda (%s), "
+                           "yetishmayapti: %s", who, code, missing)
+            history_store.add("batch_forced",
+                              f"{code} чала юборилди — йўқ: {', '.join(missing)}", who)
+
+        await ctx["send_batch"](code, force)
         return {"ok": True, "message": f"{code} юбориш бошланди — натижани чатда кўринг"}
 
     if action == "unmatched_attach":
@@ -382,7 +393,8 @@ def create_app(ctx) -> web.Application:
         action = payload.get("action", "")
         try:
             result = await _do_action(action, payload.get("data") or {},
-                                      {**ctx, "user_id": user.get("id")})
+                                      {**ctx, "user_id": user.get("id"),
+                                       "user_name": user.get("first_name")})
         except Exception as e:
             logger.exception("Mini App amali xato: %s", action)
             result = {"error": f"Хатолик: {e}"}
