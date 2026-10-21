@@ -108,10 +108,6 @@ def _collect_state() -> dict:
         customers.append({
             "name": name,
             "emails": info.get("emails", []),
-            # Tahrirlash maydoni uchun: "a@x + b@x, c@y"
-            "email_text": customer_store.format_email_groups(
-                customer_store.get_email_groups(name)),
-            "mail_count": len(customer_store.get_email_groups(name)),
             "prefixes": info.get("prefixes", []),
             "aliases": info.get("aliases", []),
         })
@@ -172,15 +168,13 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
         name = (data.get("name") or "").strip()
         if not name:
             return {"error": "Мижоз номи бўш"}
-        groups = customer_store.parse_email_groups(data.get("emails"))
-        emails = [e for g in groups for e in g]
+        emails = [e.strip() for e in (data.get("emails") or "").split(",") if e.strip()]
         bad = [e for e in emails if not customer_store.is_valid_email(e)]
         if bad:
             return {"error": "Email нотўғри: " + ", ".join(bad)}
         if not emails:
             return {"error": "Камида битта email киритинг"}
         customer_store.add_customer(name, emails)
-        customer_store.set_emails(name, emails, groups)
         return {"ok": True, "message": f"{name.upper()} сақланди"}
 
     if action == "customer_update":
@@ -203,15 +197,13 @@ async def _do_action(action: str, data: dict, ctx) -> dict:
 
         raw = data.get("emails")
         if raw is not None:
-            # "a@x + b@x, c@y" - "+" bilan bog'langanlar BITTA xatga tushadi
-            groups = customer_store.parse_email_groups(raw)
-            emails = [e for g in groups for e in g]
+            emails = [e.strip() for e in str(raw).split(",") if e.strip()]
             bad = [e for e in emails if not customer_store.is_valid_email(e)]
             if bad:
                 return {"error": "Email нотўғри: " + ", ".join(bad)}
             if not emails:
                 return {"error": "Камида битта email киритинг"}
-            customer_store.set_emails(new, emails, groups)
+            customer_store.set_emails(new, emails)
 
         return {"ok": True, "message": f"{new} янгиланди"}
 
