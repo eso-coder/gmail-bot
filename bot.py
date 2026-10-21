@@ -1826,12 +1826,24 @@ async def _do_finalize_and_send(code: str, batch: dict, context: ContextTypes.DE
         return
 
     emails = customer_store.get_emails(customer_name)
+    # Manzillar GURUHLARGA bo'linadi: bir guruhdagilarga bitta xat ketadi
+    # (masalan bir kompaniyaning uch manzili), guruhlar esa bir-birini
+    # ko'rmaydi. Guruh belgilanmagan bo'lsa - har biri alohida, avvalgidek.
+    groups = customer_store.get_email_groups(customer_name)
+
     # Oldingi urinishda ba'zi manzillarga yetmagan bo'lsa, FAQAT o'shalarga
     # yuboramiz - xatni allaqachon olganlarga ikkinchi marta bormasin.
     pending = batch.get("pending_emails")
     if pending:
-        emails = [e for e in pending if e in (emails or [])] or pending
+        groups = [[e for e in g if e in pending] for g in groups]
+        groups = [g for g in groups if g]
+        emails = [e for g in groups for e in g]
+        if not emails:
+            # Guruhlar o'zgarib ketgan bo'lsa ham manzillar yo'qolmasin
+            groups = [[e] for e in pending]
+            emails = list(pending)
         logger.info("%s: qayta urinish, %d ta manzil qoldi", code, len(emails))
+
     if not emails:
         msg = (f"⚠️ {customer_name} мижозининг emaili топилмади. "
                f"{display_code} юборилмади — /customer_add билан email қўшинг.")
@@ -1897,7 +1909,7 @@ async def _do_finalize_and_send(code: str, batch: dict, context: ContextTypes.DE
         # katta ilovalar yuborilayotganda bot butunlay "muzlab" qolardi
         results = await asyncio.to_thread(
             gmail_sender.send_batch_to_multiple,
-            emails,
+            groups,
             subject,
             doc_types.email_body(display_code, truck_full or batch.get("truck"), ordered),
             file_paths,

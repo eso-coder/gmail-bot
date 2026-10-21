@@ -254,16 +254,35 @@ def send_email_with_attachments(to_email: str, subject: str, body_text: str, fil
         raise GmailError(error)
 
 
-def send_batch_to_multiple(emails: list, subject: str, body_text: str, file_paths: list) -> dict:
+def _as_groups(recipients: list) -> list:
     """
-    Bir nechta email manziliga ALOHIDA-ALOHIDA, har biriga BARCHA fayllar
-    biriktirilgan holda xat yuboradi (mijozlar bir-birining manzilini ko'rmaydi).
+    Qabul qiluvchilarni guruhlar ko'rinishiga keltiradi.
+    Oddiy ro'yxat ham ("a@x", "b@y") qabul qilinadi - har biri o'z guruhida.
+    """
+    groups = []
+    for item in recipients or []:
+        group = [item] if isinstance(item, str) else [e for e in (item or []) if e]
+        if group:
+            groups.append(group)
+    return groups
+
+
+def send_batch_to_multiple(recipients: list, subject: str, body_text: str,
+                           file_paths: list) -> dict:
+    """
+    Xatni yuboradi. `recipients` - manzillar ro'yxati YOKI guruhlar ro'yxati:
+
+        ["a@x", "b@y"]            -> 2 ta alohida xat
+        [["a@x", "b@x"], ["c@y"]] -> 2 ta xat; birinchisi ikkala manzilga
+
+    Bir guruhdagilar bir-birining manzilini ko'radi (bir kompaniya uchun
+    qulay), turli guruhlar esa bir-birini ko'rmaydi.
 
     Qaytaradi: {"email@example.com": None (muvaffaqiyatli) yoki "xatolik matni", ...}
-
-    Fayllar bir marta o'qiladi va SMTP ulanishi bir marta ochiladi - barcha
-    manzillarga shu bitta ulanish orqali yuboriladi.
+    Fayllar bir marta o'qiladi va SMTP ulanishi qayta ishlatiladi.
     """
+    groups = _as_groups(recipients)
+    emails = [e for g in groups for e in g]
     if not emails:
         return {}
 
@@ -289,13 +308,17 @@ def send_batch_to_multiple(emails: list, subject: str, body_text: str, file_path
 
     results = {}
     try:
-        for email in emails:
+        for group in groups:
             # MUHIM: _send_one ichida qayta ulanish bo'lishi mumkin, shuning
             # uchun u YANGI ulanishni ham qaytaradi. Ilgari faqat xato
             # qaytarardi va bu yerda eski (yopilgan) ulanish qolib ketardi -
             # natijada HAR BIR keyingi manzil "please run connect() first"
             # bilan birinchi urinishda yiqilib, bekorga qayta ulanardi.
-            results[email], server = _send_one(server, base_message, email)
+            error, server = _send_one(server, base_message, group)
+            # Natija har bir manzil uchun alohida yoziladi - qayta urinish
+            # va hisobot mantig'i o'zgarmasin
+            for email in group:
+                results[email] = error
     finally:
         _close(server)
 
@@ -324,14 +347,18 @@ def _reconnect(server):
         return None
 
 
-def _send_one(server, base_message, email: str):
+def _send_one(server, base_message, group):
     """
-    Bitta manzilga yuboradi. Ulanish uzilganda QAYTA ULANIB, bir necha
-    marta urinadi - ilgari bitta urinish bo'lgani uchun "Server not
-    connected" holatida mijoz xatni umuman olmay qolardi.
+    Bitta GURUHGA (bir yoki bir nechta manzilga) bitta xat yuboradi.
+    Ulanish uzilganda QAYTA ULANIB, bir necha marta urinadi - ilgari bitta
+    urinish bo'lgani uchun "Server not connected" holatida mijoz xatni
+    umuman olmay qolardi.
 
     Qaytaradi: (xato_matni yoki None, ishlatilgan_ulanish)
     """
+    if isinstance(group, str):
+        group = [group]
+    email = ", ".join(group)
     last_error = "Номаълум хатолик"
 
     for attempt in range(1, SEND_ATTEMPTS + 1):

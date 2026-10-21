@@ -55,6 +55,9 @@ def _normalize_record(info) -> dict:
         "emails": [e for e in info.get("emails", []) if isinstance(e, str)],
         "prefixes": [p for p in info.get("prefixes", []) if isinstance(p, str)],
         "aliases": [a for a in info.get("aliases", []) if isinstance(a, str)],
+        # Bitta xatga birlashtiriladigan manzillar: [["a@x", "b@x"], ["c@y"]]
+        "email_groups": [[e for e in g if isinstance(e, str)]
+                         for g in info.get("email_groups", []) if isinstance(g, list)],
     }
 
 
@@ -164,15 +167,74 @@ def remove_alias(alias: str, name: str = "") -> bool:
     return False
 
 
-def set_emails(name: str, emails: list) -> bool:
-    """Mijozning email ro'yxatini butunlay almashtiradi."""
+def set_emails(name: str, emails: list, groups: list = None) -> bool:
+    """
+    Mijozning email ro'yxatini butunlay almashtiradi.
+    `groups` berilsa, qaysi manzillar BITTA xatga birlashtirilishi ham saqlanadi.
+    """
     data = load_customers()
     name = name.strip().upper()
     if name not in data:
         return False
     data[name]["emails"] = _clean_emails(emails)
+    if groups is not None:
+        data[name]["email_groups"] = [list(g) for g in groups if g]
     save_customers(data)
     return True
+
+
+# ---------- Manzillarni guruhlash ----------
+#
+# Odatda har bir manzilga ALOHIDA xat ketadi (mijozlar bir-birining
+# manzilini ko'rmasin). Lekin ba'zi manzillar bir kompaniyaniki bo'ladi -
+# ularga bitta xat yuborish ham tez, ham qulay (javob berganda hammasi
+# bir suhbatda qoladi).
+#
+# Yozilishi:  "a@x.com, b@y.com"        -> 2 ta alohida xat
+#             "a@x.com + b@x.com"       -> BITTA xat, ikkala manzilga
+#             "a@x + b@x, c@y"          -> 2 ta xat: (a,b) va (c)
+
+def parse_email_groups(text) -> list:
+    """Matndan guruhlarni ajratadi. Qaytaradi: [[manzil, ...], ...]"""
+    groups = []
+    for chunk in str(text or "").split(","):
+        group = [e.strip() for e in chunk.split("+") if e.strip()]
+        if group:
+            groups.append(group)
+    return groups
+
+
+def format_email_groups(groups) -> str:
+    """Guruhlarni tahrirlash maydoni uchun matnga aylantiradi."""
+    return ", ".join(" + ".join(g) for g in groups if g)
+
+
+def get_email_groups(name: str) -> list:
+    """
+    Xat yuborish uchun guruhlar ro'yxati.
+
+    Saqlangan guruh bo'lmasa (yoki u eskirgan bo'lsa) - har bir manzil
+    o'z guruhida, ya'ni avvalgidek alohida-alohida yuboriladi.
+    """
+    customer = load_customers().get((name or "").strip().upper())
+    if not customer:
+        return []
+
+    emails = customer.get("emails", [])
+    stored = customer.get("email_groups") or []
+
+    # Guruhlarni joriy manzillar bilan solishtiramiz: o'chirilgan manzil
+    # guruhda qolib ketmasin, yangi qo'shilgani esa tushib qolmasin.
+    known = set()
+    groups = []
+    for g in stored:
+        kept = [e for e in g if e in emails and e not in known]
+        if kept:
+            groups.append(kept)
+            known.update(kept)
+
+    groups += [[e] for e in emails if e not in known]
+    return groups
 
 
 def rename_customer(old: str, new: str) -> bool:

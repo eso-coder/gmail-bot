@@ -493,8 +493,10 @@ function drawCustomers(){
       return '<div class="card">'
         + '<div class="name">✏️ ' + esc(c.name) + "</div>"
         + "<label>Номи</label><input id=\"e-name\" value=\"" + esc(c.name) + "\">"
-        + "<label>Email (вергул билан)</label><input id=\"e-mail\" value=\""
-        +   esc(c.emails.join(", ")) + "\">"
+        + "<label>Email</label><input id=\"e-mail\" value=\""
+        +   esc(c.email_text || c.emails.join(", ")) + "\">"
+        + '<div class="hintline">Вергул — алоҳида хат. Плюс — битта хатга: '
+        +   "<b>a@x + b@x, c@y</b></div>"
         + '<div class="acts">'
         +   '<button class="btn" onclick="saveCustomer(\'' + js(c.name) + '\')">Сақлаш</button>'
         +   '<button class="btn ghost" onclick="editing=null;drawCustomers()">Бекор</button>'
@@ -509,7 +511,9 @@ function drawCustomers(){
           + "',alias:'" + js(a) + "'})\">✕</span></span>").join("");
     return '<div class="card">'
       + '<div class="name">' + esc(c.name) + "</div>"
-      + '<div class="meta">' + (esc(c.emails.join(", ")) || "⚠️ email йўқ") + "</div>"
+      + '<div class="meta">' + (esc(c.email_text || c.emails.join(", ")) || "⚠️ email йўқ")
+      +   (c.mail_count && c.mail_count < c.emails.length
+            ? " · <b>" + c.mail_count + " та хат</b>" : "") + "</div>"
       + '<div class="tags" style="margin-top:9px">' + chips + "</div>"
       + '<div class="acts">'
       +   '<button class="btn sm ghost" onclick="editing=\'' + js(c.name) + '\';drawCustomers()">✏️ Таҳрирлаш</button>'
@@ -522,7 +526,9 @@ function drawCustomers(){
   el.innerHTML = list
     + '<div class="card"><div class="name">➕ Янги мижоз</div>'
     + "<label>Номи</label><input id=\"c-name\" placeholder=\"GALLAKTIKA\">"
-    + "<label>Email (вергул билан)</label><input id=\"c-mail\" placeholder=\"a@b.com, c@d.com\">"
+    + "<label>Email</label><input id=\"c-mail\" placeholder=\"a@b.com, c@d.com\">"
+    + '<div class="hintline">Вергул — алоҳида хат. Плюс — битта хатга: '
+    +   "<b>a@x + b@x, c@y</b></div>"
     + '<div class="acts"><button class="btn" onclick="addCustomer()">Сақлаш</button></div></div>';
 }
 
